@@ -1,4 +1,4 @@
-# source: https://www.geeksforgeeks.org/python-blockchain-implementation/
+# source: https://www.geeksforgeeks.org/python/create-simple-blockchain-using-python/
 
 # Python program to create Blockchain
 
@@ -97,6 +97,21 @@ blockchain = Blockchain()
 
 # Mining a new block
 
+# TODO: save blockchain
+
+# TODO: check for nodes in the network
+
+# TODO: broadcast blockchain to other nodes
+
+# TODO: request transaction to the blockchain
+
+# TODO: add transactions to the block
+
+# TODO: add user restrictions to the transactions
+
+# TODO: add user authentication
+
+# TODO: add unauthorized transaction
 
 @app.route('/mine_block', methods=['GET'])
 def mine_block():
