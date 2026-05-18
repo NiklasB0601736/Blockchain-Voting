@@ -1,0 +1,37 @@
+{
+  "name": "blockchain-voting-system",
+  "version": "1.0.0",
+  "description": "Dezentralisiertes anonymes Wahlsystem mit Ethereum, zkSync und Semaphore",
+  "main": "blockchainV1.py",
+  "scripts": {
+    "start": "python blockchainV1.py",
+    "hardhat:compile": "hardhat compile",
+    "hardhat:test": "hardhat test",
+    "hardhat:deploy-zk": "hardhat deploy-zk",
+    "frontend": "open frontend.html"
+  },
+  "keywords": [
+    "blockchain",
+    "voting",
+    "ethereum",
+    "zksync",
+    "semaphore",
+    "anonymous",
+    "solidity",
+    "hardhat",
+    "metamask"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "devDependencies": {
+    "hardhat": "^2.14.0",
+    "@nomicfoundation/hardhat-toolbox": "^3.0.0",
+    "@matterlabs/hardhat-zksync-deploy": "^0.6.2",
+    "@matterlabs/hardhat-zksync-solc": "^0.4.0",
+    "@matterlabs/zksync-contracts": "^0.4.1"
+  },
+  "dependencies": {
+    "ethers": "^6.0.0",
+    "@semaphore-protocol/contracts": "^3.8.0"
+  }
+}
