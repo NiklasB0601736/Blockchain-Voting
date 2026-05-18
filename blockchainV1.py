@@ -1,5 +1,4 @@
-﻿#!/usr/bin/env python3
-import datetime
+﻿import datetime
 import hashlib
 import json
 from flask import Flask, jsonify, request
@@ -143,11 +142,6 @@ def require_admin_key(f):
             return jsonify({'error': 'Unauthorized'}), 401
         return f(*args, **kwargs)
     return decorated
-
-@app.route('/api/elections', methods=['GET'])
-def get_elections():
-    elections = blockchain.get_all_elections()
-    return jsonify({'elections': elections, 'total': len(elections)}), 200
 
 @app.route('/api/elections', methods=['POST'])
 @require_admin_key
