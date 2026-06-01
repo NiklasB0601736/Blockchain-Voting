@@ -1,5 +1,4 @@
-<<<<<<< HEAD
-﻿# Blockchain-basiertes Anonymes Wahlsystem
+Blockchain-basiertes Anonymes Wahlsystem
 
 Ein dezentralisiertes, sicheres Wahlsystem mit vollständiger Anonymität und öffentlicher Auswertbarkeit.
 
@@ -106,4 +105,3 @@ POST /api/vote
 Voting System based on blockchain to secure anonymity and security
 
 https://www.geeksforgeeks.org/software-engineering/blockchain/
->>>>>>> 6086a5a2047082ed809aeec55c2a4ad1c3605fc5
