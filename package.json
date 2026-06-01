@@ -4,7 +4,7 @@
   "description": "Dezentralisiertes anonymes Wahlsystem mit Ethereum, zkSync und Semaphore",
   "main": "blockchainV1.py",
   "scripts": {
-    "start": "python blockchainV1.py",
+    "start": ".venv/bin/python blockchainV1.py",
     "hardhat:compile": "hardhat compile",
     "hardhat:test": "hardhat test",
     "hardhat:deploy-zk": "hardhat deploy-zk",

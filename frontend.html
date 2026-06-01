@@ -181,6 +181,29 @@
         .features li {
             margin-bottom: 8px;
         }
+
+        .button-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 10px;
+        }
+
+        .small-button {
+            padding: 10px 12px;
+            font-size: 13px;
+        }
+
+        .mono {
+            font-family: Consolas, Monaco, monospace;
+            font-size: 12px;
+            word-break: break-all;
+        }
+
+        .election-list {
+            max-height: 220px;
+            overflow: auto;
+            margin-top: 15px;
+        }
     </style>
 </head>
 <body>
@@ -205,10 +228,29 @@
                     <input type="text" id="accountAddress" disabled>
                 </div>
             </div>
+
+            <!-- Backend Status -->
+            <div class="card">
+                <h2>🟢 Backend Status</h2>
+                <div class="form-group">
+                    <label>API URL:</label>
+                    <input type="text" id="apiUrl" value="http://127.0.0.1:5000">
+                </div>
+                <div id="backendStatus" class="alert alert-info">Noch nicht geprüft</div>
+                <div class="button-row">
+                    <button class="small-button" onclick="checkHealth()">Status prüfen</button>
+                    <button class="small-button" onclick="loadElections()">Wahlen laden</button>
+                </div>
+                <div id="electionList" class="election-list"></div>
+            </div>
             
             <!-- Wahl erstellen -->
             <div class="card">
                 <h2>📝 Neue Wahl erstellen</h2>
+                <div class="form-group">
+                    <label>Admin-Key:</label>
+                    <input type="password" id="adminKey" value="your_secret_admin_key_here">
+                </div>
                 <div class="form-group">
                     <label>Wahl-Titel:</label>
                     <input type="text" id="electionTitle" placeholder="z.B. Bundestag 2026">
@@ -223,6 +265,21 @@
                 </div>
                 <button onclick="createElection()">Wahl erstellen</button>
                 <div id="createStatus"></div>
+            </div>
+
+            <!-- Wahl laden / beenden -->
+            <div class="card">
+                <h2>⚙️ Wahl verwalten</h2>
+                <div class="form-group">
+                    <label>Wahl-ID:</label>
+                    <input type="text" id="manageElectionId" placeholder="UUID der Wahl">
+                </div>
+                <div class="button-row">
+                    <button class="small-button" onclick="loadElectionDetails()">Wahl laden</button>
+                    <button class="small-button" onclick="finalizeElection()">Wahl beenden</button>
+                </div>
+                <div id="manageStatus"></div>
+                <div id="electionDetails"></div>
             </div>
             
             <!-- Wähler-Registrierung -->
@@ -249,7 +306,9 @@
                 </div>
                 <div class="form-group">
                     <label>Wahlmöglichkeit (Index 0, 1, 2...):</label>
-                    <input type="number" id="voteOption" value="0" min="0">
+                    <select id="voteOption">
+                        <option value="0">0</option>
+                    </select>
                 </div>
                 <div class="form-group">
                     <label>Ihr Commitment:</label>
@@ -333,7 +392,14 @@
     </div>
     
     <script>
-        const API_URL = 'http://127.0.0.1:5000';
+        document.addEventListener('DOMContentLoaded', () => {
+            checkHealth();
+            loadElections();
+        });
+
+        function getApiUrl() {
+            return document.getElementById('apiUrl').value.replace(/\/$/, '');
+        }
         
         async function connectMetaMask() {
             if (typeof window.ethereum === 'undefined') {
@@ -351,18 +417,48 @@
                 document.getElementById('accountInfo').style.display = 'block';
                 updateMetaMaskStatus('Verbunden: ' + address.substring(0, 6) + '...', true);
                 
-                // Generiere Semaphore Commitment
-                document.getElementById('voterCommitment').value = keccak256(address);
-                document.getElementById('voteCommitment').value = keccak256(address);
+                // Demo-Commitment aus Wallet-Adresse erzeugen.
+                const commitment = await sha256Hex(address);
+                document.getElementById('voterCommitment').value = commitment;
+                document.getElementById('voteCommitment').value = commitment;
                 
             } catch (error) {
                 alert('Fehler: ' + error.message);
             }
         }
         
-        function keccak256(str) {
-            const crypto = require('crypto');
-            return crypto.createHash('sha256').update(str).digest('hex');
+        async function sha256Hex(str) {
+            if (!window.crypto || !window.crypto.subtle) {
+                return `demo_commitment_${str.toLowerCase()}`;
+            }
+
+            const bytes = new TextEncoder().encode(str);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', bytes);
+            return Array.from(new Uint8Array(hashBuffer))
+                .map(byte => byte.toString(16).padStart(2, '0'))
+                .join('');
+        }
+
+        function getAdminKey() {
+            return document.getElementById('adminKey').value;
+        }
+
+        function escapeHtml(value) {
+            return String(value)
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#039;');
+        }
+
+        async function requestJson(url, options = {}) {
+            const response = await fetch(url, options);
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data.error || `HTTP ${response.status}`);
+            }
+            return data;
         }
         
         function updateMetaMaskStatus(text, connected) {
@@ -370,6 +466,107 @@
             status.textContent = text;
             if (connected) {
                 status.classList.add('connected');
+            }
+        }
+
+        async function checkHealth() {
+            const statusDiv = document.getElementById('backendStatus');
+            
+            try {
+                const data = await requestJson(`${getApiUrl()}/api/health`);
+                statusDiv.className = 'alert alert-success';
+                statusDiv.innerHTML = `✓ Online | Wahlen: ${data.elections_count} | Blöcke: ${data.chain_length} | Chain: ${data.blockchain_valid ? 'gültig' : 'ungültig'}`;
+            } catch (error) {
+                statusDiv.className = 'alert alert-error';
+                statusDiv.textContent = `Backend nicht erreichbar: ${error.message}`;
+            }
+        }
+
+        async function loadElections() {
+            const listDiv = document.getElementById('electionList');
+
+            try {
+                const data = await requestJson(`${getApiUrl()}/api/elections`);
+                if (data.elections.length === 0) {
+                    listDiv.innerHTML = '<div class="alert alert-info">Noch keine Wahlen vorhanden</div>';
+                    return;
+                }
+
+                listDiv.innerHTML = data.elections.map(election => `
+                    <div class="features">
+                        <strong>${escapeHtml(election.title)}</strong>
+                        <div class="mono">${escapeHtml(election.election_id)}</div>
+                        <p>Status: ${election.active ? 'aktiv' : 'beendet'} | Stimmen: ${election.total_votes}</p>
+                        <button class="small-button" onclick="useElection('${escapeHtml(election.election_id)}')">Diese Wahl nutzen</button>
+                    </div>
+                `).join('');
+            } catch (error) {
+                listDiv.innerHTML = `<div class="alert alert-error">✗ ${escapeHtml(error.message)}</div>`;
+            }
+        }
+
+        function useElection(electionId) {
+            document.getElementById('manageElectionId').value = electionId;
+            document.getElementById('regElectionId').value = electionId;
+            document.getElementById('voteElectionId').value = electionId;
+            document.getElementById('resultsElectionId').value = electionId;
+            document.getElementById('verifyElectionId').value = electionId;
+            loadElectionDetails();
+        }
+
+        async function loadElectionDetails() {
+            const electionId = document.getElementById('manageElectionId').value;
+            const statusDiv = document.getElementById('manageStatus');
+            const detailsDiv = document.getElementById('electionDetails');
+            const voteSelect = document.getElementById('voteOption');
+
+            if (!electionId) {
+                statusDiv.innerHTML = '<div class="alert alert-error">Wahl-ID erforderlich!</div>';
+                return;
+            }
+
+            try {
+                const election = await requestJson(`${getApiUrl()}/api/elections/${electionId}`);
+                statusDiv.innerHTML = '<div class="alert alert-success">✓ Wahl geladen</div>';
+                detailsDiv.innerHTML = `
+                    <div class="features">
+                        <strong>${escapeHtml(election.title)}</strong>
+                        <ul>
+                            <li>Status: ${election.active ? 'aktiv' : 'beendet'}</li>
+                            <li>Registrierte Wähler: ${election.registered_voters}</li>
+                            <li>Stimmen: ${election.total_votes}</li>
+                            <li>Ende: ${escapeHtml(election.end_time)}</li>
+                        </ul>
+                    </div>
+                `;
+                voteSelect.innerHTML = election.options.map((option, index) => (
+                    `<option value="${index}">${index}: ${escapeHtml(option)}</option>`
+                )).join('');
+            } catch (error) {
+                statusDiv.innerHTML = `<div class="alert alert-error">✗ ${escapeHtml(error.message)}</div>`;
+            }
+        }
+
+        async function finalizeElection() {
+            const electionId = document.getElementById('manageElectionId').value;
+            const statusDiv = document.getElementById('manageStatus');
+
+            if (!electionId) {
+                statusDiv.innerHTML = '<div class="alert alert-error">Wahl-ID erforderlich!</div>';
+                return;
+            }
+
+            try {
+                await requestJson(`${getApiUrl()}/api/elections/${electionId}/finalize`, {
+                    method: 'POST',
+                    headers: { 'X-Admin-Key': getAdminKey() }
+                });
+                statusDiv.innerHTML = '<div class="alert alert-success">✓ Wahl beendet</div>';
+                await checkHealth();
+                await loadElections();
+                await loadElectionDetails();
+            } catch (error) {
+                statusDiv.innerHTML = `<div class="alert alert-error">✗ ${escapeHtml(error.message)}</div>`;
             }
         }
         
@@ -387,11 +584,11 @@
             const options = optionsStr.split(',').map(o => o.trim());
             
             try {
-                const response = await fetch(`${API_URL}/api/elections`, {
+                const response = await fetch(`${getApiUrl()}/api/elections`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-Admin-Key': 'your_secret_admin_key_here'
+                        'X-Admin-Key': getAdminKey()
                     },
                     body: JSON.stringify({
                         title: title,
@@ -408,6 +605,10 @@
                     document.getElementById('voteElectionId').value = data.election_id;
                     document.getElementById('resultsElectionId').value = data.election_id;
                     document.getElementById('verifyElectionId').value = data.election_id;
+                    document.getElementById('manageElectionId').value = data.election_id;
+                    await checkHealth();
+                    await loadElections();
+                    await loadElectionDetails();
                 } else {
                     statusDiv.innerHTML = `<div class="alert alert-error">✗ Fehler: ${data.error}</div>`;
                 }
@@ -427,7 +628,7 @@
             }
             
             try {
-                const response = await fetch(`${API_URL}/api/voters/register`, {
+                const response = await fetch(`${getApiUrl()}/api/voters/register`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -460,7 +661,7 @@
             }
             
             try {
-                const response = await fetch(`${API_URL}/api/vote`, {
+                const response = await fetch(`${getApiUrl()}/api/vote`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -493,7 +694,7 @@
             }
             
             try {
-                const response = await fetch(`${API_URL}/api/results/${electionId}`);
+                const response = await fetch(`${getApiUrl()}/api/results/${electionId}`);
                 const data = await response.json();
                 
                 if (response.ok) {
@@ -532,7 +733,7 @@
             }
             
             try {
-                const response = await fetch(`${API_URL}/api/verify/${electionId}`);
+                const response = await fetch(`${getApiUrl()}/api/verify/${electionId}`);
                 const data = await response.json();
                 
                 if (response.ok) {

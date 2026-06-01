@@ -78,6 +78,15 @@ def test_blockchain_voting():
             print(f"✓ Vote für '{option_name}' abgegeben (anonym)")
         except ValueError as e:
             print(f"✗ Fehler: {e}")
+
+    # ========== TEST 4B: DOPPEL-ABSTIMMUNG VERHINDERN ==========
+    print_header("TEST 4B: Doppel-Abstimmung testen")
+
+    try:
+        blockchain.cast_anonymous_vote(election_id, 2, voters[0])
+        print("✗ FEHLER: Zweite Stimme wurde erlaubt!")
+    except ValueError as e:
+        print(f"✓ Verhindert! - {e}")
     
     # ========== TEST 5: BLOCKCHAIN ÜBERPRÜFEN ==========
     print_header("TEST 5: Blockchain-Integrität prüfen")
@@ -147,7 +156,7 @@ def test_blockchain_voting():
         print(f"    - ID: {vote.vote_id[:16]}...")
         print(f"    - Option: {election.options[vote.vote_option]}")
         print(f"    - Timestamp: {vote.timestamp}")
-        print(f"    - Commitment: {vote.commitment[:20]}...")
+        print(f"    - Commitment Hash: {vote.commitment_hash[:20]}...")
     
     print(f"  ... und {len(election.votes) - 3} weitere anonyme Votes")
     print(f"\n✓ KEINE RÜCKVERFOLGUNG MÖGLICH - Wahlergebnis ist anonym!")
