@@ -16,10 +16,10 @@ Ein vollständig funktionsfähiges dezentralisiertes Wahlsystem mit:
 DATEIEN UND KOMPONENTEN
 =======================
 
-1. BACKEND (Python/Flask)
+1. BACKEND (Python/FastAPI)
    📄 blockchainV1.py (12,7 KB)
       - Blockchain-Core mit Proof-of-Work
-      - Flask REST API mit 16 Endpunkten
+      - FastAPI REST API mit automatischer /docs-Dokumentation
       - Vote und Election Klassen
       - SHA-256 Hashing für Integrität
       - Admin-Auth und Public-Read Zugriff
@@ -82,7 +82,7 @@ ARCHITEKTUR & TECHNOLOGIE STACK
 └──────────────────────┬──────────────────────────────────────┘
                        │
 ┌──────────────────────▼──────────────────────────────────────┐
-│                     API TIER (Flask)                         │
+│                    API TIER (FastAPI)                         │
 │  Python Backend mit 16 REST-Endpunkten                       │
 │  ├─ Admin-Funktionen (Auth-geschützt)                       │
 │  │  ├─ POST /api/elections (erstelle Wahl)                  │
@@ -127,7 +127,7 @@ KOMPONENTEN-ZUORDNUNG
 | Semaphore | Anonyme Zero-Knowledge Proofs | registerVoter + castVote |
 | MetaMask | Identität & Wallet | Frontend + Signierung |
 | Hardhat | Smart Contract Entwicklung | Compile + Deploy |
-| Flask | Backend API | blockchainV1.py |
+| FastAPI | Backend API | blockchainV1.py |
 | Blockchain | Integrität & Transparenz | Python In-Memory Chain |
 
 ---
@@ -271,7 +271,7 @@ Gesamt-Codeumfang:
 Funktion Breakdown:
 - Blockchain-Core: 100 LOC
 - Vote/Election Klassen: 150 LOC
-- Flask API: 300 LOC
+- FastAPI API: 300 LOC
 - Smart Contract: 250 LOC
 - Frontend: 400 LOC
 

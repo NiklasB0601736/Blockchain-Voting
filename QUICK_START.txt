@@ -22,6 +22,9 @@ INSTALLATION
    Wenn du PORT=5001 nutzt, im Frontend die API URL auf
    http://127.0.0.1:5001 setzen.
 
+5. FastAPI-Doku öffnen:
+   http://127.0.0.1:5000/docs
+
 
 ERSTE WAHL DURCHFUEHREN
 =======================

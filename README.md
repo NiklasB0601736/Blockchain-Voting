@@ -1,6 +1,6 @@
 # Blockchain-basiertes Wahlsystem
 
-Lokale Demo fuer ein transparentes Wahlsystem mit Flask-API, einfacher
+Lokale Demo fuer ein transparentes Wahlsystem mit FastAPI, einfacher
 Blockchain-Integritaetspruefung und einem HTML-Frontend.
 
 Wichtig: Die Python-App ist aktuell eine Demo-Implementierung. Der Solidity
@@ -18,8 +18,8 @@ nicht vollstaendig mit echter Zero-Knowledge-Proof-Verifikation angebunden.
 
 ## Projektdateien
 
-- `blockchainV1.py` - Python Backend mit Blockchain-Core und Flask API
-- `frontend.html` - Web-Interface fuer die Flask API
+- `blockchainV1.py` - Python Backend mit Blockchain-Core und FastAPI
+- `frontend.html` - Web-Interface fuer die FastAPI
 - `test_voting.py` - Demo-Testlauf fuer die Kernlogik
 - `contracts/VotingContract.sol` - Solidity-Entwurf fuer On-Chain Voting
 - `hardhat.config.js` - Hardhat-Konfiguration
@@ -43,6 +43,12 @@ Die API laeuft danach unter:
 
 ```text
 http://127.0.0.1:5000
+```
+
+Die interaktive FastAPI-Dokumentation ist erreichbar unter:
+
+```text
+http://127.0.0.1:5000/docs
 ```
 
 Falls Port 5000 auf deinem Mac schon belegt ist:

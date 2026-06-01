@@ -3,7 +3,6 @@ import hashlib
 import json
 import os
 import uuid
-from functools import wraps
 from typing import Dict, List, Optional
 
 
@@ -271,146 +270,158 @@ class Blockchain:
 
 
 def create_app(blockchain_instance: Optional[Blockchain] = None):
-    from flask import Flask, jsonify, request
+    from fastapi import Depends, FastAPI, Header, HTTPException, status
+    from fastapi.middleware.cors import CORSMiddleware
+    from fastapi.responses import JSONResponse
+    from pydantic import BaseModel, Field
 
-    app = Flask(__name__)
-    app.config["ADMIN_KEY"] = os.environ.get("ADMIN_KEY", DEFAULT_ADMIN_KEY)
+    class CreateElectionRequest(BaseModel):
+        title: str
+        options: List[str]
+        duration: int = Field(default=3600)
+
+    class RegisterVoterRequest(BaseModel):
+        election_id: str
+        voter_commitment: str
+
+    class VoteRequest(BaseModel):
+        election_id: str
+        vote_option: int
+        voter_commitment: str
+        proof: Optional[str] = None
+
+    app = FastAPI(
+        title="Blockchain Voting API",
+        description="Lokale Demo-API fuer ein blockchain-basiertes Wahlsystem.",
+        version="1.0.0",
+    )
+    admin_key = os.environ.get("ADMIN_KEY", DEFAULT_ADMIN_KEY)
     chain = blockchain_instance or Blockchain()
 
-    @app.after_request
-    def add_cors_headers(response):
-        response.headers["Access-Control-Allow-Origin"] = "*"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type, X-Admin-Key"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
-        return response
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Content-Type", "X-Admin-Key"],
+    )
 
-    def require_admin_key(f):
-        @wraps(f)
-        def decorated(*args, **kwargs):
-            admin_key = request.headers.get("X-Admin-Key")
-            if admin_key != app.config["ADMIN_KEY"]:
-                return jsonify({"error": "Unauthorized"}), 401
-            return f(*args, **kwargs)
+    @app.exception_handler(HTTPException)
+    async def http_exception_handler(request, exc):
+        detail = exc.detail if isinstance(exc.detail, str) else "Request fehlgeschlagen"
+        return JSONResponse(status_code=exc.status_code, content={"error": detail})
 
-        return decorated
+    def api_error(message: str, status_code: int = status.HTTP_400_BAD_REQUEST):
+        raise HTTPException(status_code=status_code, detail=message)
 
-    def get_json_body():
-        data = request.get_json(silent=True)
-        if data is None:
-            raise ValueError("Ungueltiger oder fehlender JSON-Body")
-        return data
+    def require_admin_key(x_admin_key: Optional[str] = Header(default=None, alias="X-Admin-Key")):
+        if x_admin_key != admin_key:
+            api_error("Unauthorized", status.HTTP_401_UNAUTHORIZED)
 
-    @app.route("/api/elections", methods=["GET"])
+    @app.get("/api/elections")
     def list_elections():
         elections = chain.get_all_elections()
-        return jsonify({"elections": elections, "total": len(elections)}), 200
+        return {"elections": elections, "total": len(elections)}
 
-    @app.route("/api/elections", methods=["POST"])
-    @require_admin_key
-    def create_election():
+    @app.post("/api/elections", status_code=status.HTTP_201_CREATED)
+    def create_election(data: CreateElectionRequest, _admin=Depends(require_admin_key)):
         try:
-            data = get_json_body()
             election_id = chain.create_election(
-                data.get("title"),
-                data.get("options", []),
-                data.get("duration", 3600),
+                data.title,
+                data.options,
+                data.duration,
             )
-            return jsonify({"message": "Wahl erfolgreich erstellt", "election_id": election_id}), 201
+            return {"message": "Wahl erfolgreich erstellt", "election_id": election_id}
         except ValueError as e:
-            return jsonify({"error": str(e)}), 400
+            api_error(str(e))
 
-    @app.route("/api/elections/<election_id>", methods=["GET"])
+    @app.get("/api/elections/{election_id}")
     def get_election(election_id):
         try:
             election = chain._get_election(election_id)
-            return jsonify(election.to_dict()), 200
+            return election.to_dict()
         except ValueError as e:
-            return jsonify({"error": str(e)}), 404
+            api_error(str(e), status.HTTP_404_NOT_FOUND)
 
-    @app.route("/api/voters/register", methods=["POST"])
-    def register_voter():
+    @app.post("/api/voters/register", status_code=status.HTTP_201_CREATED)
+    def register_voter(data: RegisterVoterRequest):
         try:
-            data = get_json_body()
-            success = chain.register_voter(data.get("election_id"), data.get("voter_commitment"))
+            success = chain.register_voter(data.election_id, data.voter_commitment)
             if not success:
-                return jsonify({"error": "Waehler bereits registriert"}), 400
-            return jsonify({"message": "Waehler erfolgreich registriert"}), 201
+                api_error("Waehler bereits registriert")
+            return {"message": "Waehler erfolgreich registriert"}
         except ValueError as e:
-            return jsonify({"error": str(e)}), 400
+            api_error(str(e))
 
-    @app.route("/api/vote", methods=["POST"])
-    def cast_vote():
+    @app.post("/api/vote")
+    def cast_vote(data: VoteRequest):
         try:
-            data = get_json_body()
             chain.cast_anonymous_vote(
-                data.get("election_id"),
-                data.get("vote_option"),
-                data.get("voter_commitment"),
-                data.get("proof"),
+                data.election_id,
+                data.vote_option,
+                data.voter_commitment,
+                data.proof,
             )
-            return jsonify({"message": "Vote erfolgreich abgegeben (anonym)"}), 200
+            return {"message": "Vote erfolgreich abgegeben (anonym)"}
         except ValueError as e:
-            return jsonify({"error": str(e)}), 400
+            api_error(str(e))
 
-    @app.route("/api/results/<election_id>", methods=["GET"])
+    @app.get("/api/results/{election_id}")
     def get_results(election_id):
         try:
-            return jsonify(chain.get_election_results(election_id)), 200
+            return chain.get_election_results(election_id)
         except ValueError as e:
-            return jsonify({"error": str(e)}), 400
+            api_error(str(e))
 
-    @app.route("/api/verify/<election_id>", methods=["GET"])
+    @app.get("/api/verify/{election_id}")
     def verify_election(election_id):
         try:
-            return jsonify(chain.verify_election_integrity(election_id)), 200
+            return chain.verify_election_integrity(election_id)
         except ValueError as e:
-            return jsonify({"error": str(e)}), 400
+            api_error(str(e))
 
-    @app.route("/api/blockchain/chain", methods=["GET"])
+    @app.get("/api/blockchain/chain")
     def get_chain():
-        return jsonify({"length": len(chain.chain), "chain": chain.chain}), 200
+        return {"length": len(chain.chain), "chain": chain.chain}
 
-    @app.route("/api/blockchain/valid", methods=["GET"])
+    @app.get("/api/blockchain/valid")
     def blockchain_valid():
         valid = chain.chain_valid(chain.chain)
         message = "Die Blockchain ist valide." if valid else "Die Blockchain ist ungueltig!"
-        return jsonify({"message": message, "valid": valid}), 200
+        return {"message": message, "valid": valid}
 
-    @app.route("/api/elections/<election_id>/finalize", methods=["POST"])
-    @require_admin_key
-    def finalize_election_endpoint(election_id):
+    @app.post("/api/elections/{election_id}/finalize")
+    def finalize_election_endpoint(election_id, _admin=Depends(require_admin_key)):
         try:
             chain.finalize_election(election_id)
-            return jsonify({"message": "Wahl erfolgreich beendet", "election_id": election_id}), 200
+            return {"message": "Wahl erfolgreich beendet", "election_id": election_id}
         except ValueError as e:
-            return jsonify({"error": str(e)}), 400
+            api_error(str(e))
 
-    @app.route("/api/health", methods=["GET"])
+    @app.get("/api/health")
     def health_check():
-        return jsonify(
-            {
-                "status": "online",
-                "blockchain_valid": chain.chain_valid(chain.chain),
-                "elections_count": len(chain.elections),
-                "chain_length": len(chain.chain),
-            }
-        ), 200
+        return {
+            "status": "online",
+            "blockchain_valid": chain.chain_valid(chain.chain),
+            "elections_count": len(chain.elections),
+            "chain_length": len(chain.chain),
+        }
 
-    app.blockchain = chain
+    app.state.blockchain = chain
     return app
 
 
 try:
     app = create_app()
 except ModuleNotFoundError as exc:
-    if exc.name != "flask":
+    if exc.name not in {"fastapi", "pydantic"}:
         raise
     app = None
 
 
 if __name__ == "__main__":
     if app is None:
-        raise SystemExit("Flask fehlt. Installiere die Abhaengigkeiten mit: pip install -r requirements.txt")
+        raise SystemExit("FastAPI fehlt. Installiere die Abhaengigkeiten mit: pip install -r requirements.txt")
 
     print("\n" + "=" * 70)
     print("BLOCKCHAIN-BASIERTES ANONYMES WAHLSYSTEM".center(70))
@@ -419,5 +430,7 @@ if __name__ == "__main__":
     print(f"\nAPI: http://127.0.0.1:{port}")
     print("Admin-Key: ueber ADMIN_KEY setzen (Default nur fuer lokale Demo)")
     print("=" * 70 + "\n")
-    debug = os.environ.get("FLASK_DEBUG", "0") == "1"
-    app.run(host="127.0.0.1", port=port, debug=debug)
+    import uvicorn
+
+    reload = os.environ.get("API_RELOAD", "0") == "1"
+    uvicorn.run("blockchainV1:app", host="127.0.0.1", port=port, reload=reload)
