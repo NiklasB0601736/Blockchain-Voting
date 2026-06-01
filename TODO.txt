@@ -1,0 +1,193 @@
+TODO - Zielarchitektur: verteiltes Zero-Trust Voting
+====================================================
+
+Projektziel
+-----------
+
+[ ] Die Wahlkette soll nicht lokal auf einem Rechner liegen, sondern von n
+    beliebig vielen Nodes repliziert und verifiziert werden.
+
+[ ] Auf der Chain duerfen keine Namen und keine Klarstimmen gespeichert werden.
+
+[ ] Stimmen sollen verschluesselt auf der Chain stehen und oeffentlich
+    einsehbar sein.
+
+[ ] Jeder Node soll spaeter pruefen koennen, ob das veroeffentlichte Ergebnis
+    korrekt aus den gespeicherten verschluesselten Stimmen berechnet wurde.
+
+
+Phase 1 - Homomorphe Verschluesselung als Prototyp
+--------------------------------------------------
+
+[ ] Ein kleines Kryptografie-Modul bauen, z.B. `crypto_tally.py`.
+
+[ ] Zuerst eine Ja/Nein-Wahl als Demo implementieren:
+    - Nein = 0
+    - Ja = 1
+    - Stimme wird als Enc(0) oder Enc(1) gespeichert.
+
+[ ] Probabilistische Verschluesselung verwenden:
+    - gleiche Klarstimme darf nicht immer gleich aussehen
+    - Enc(1) muss bei jeder Abgabe anders aussehen koennen
+    - die Zufallswerte/Nonces duerfen nicht auf der Chain stehen.
+
+[ ] Homomorphe Aggregation zeigen:
+    - Enc(v1) + Enc(v2) + ... = Enc(total)
+    - je nach Verfahren kann die Operation intern Multiplikation sein.
+
+[ ] Nur das Gesamtergebnis entschluesseln, niemals einzelne Stimmen.
+
+[ ] Tests schreiben:
+    - gleiche Stimme erzeugt unterschiedliche Ciphertexts
+    - verschluesselte Stimmen lassen sich korrekt aggregieren
+    - entschluesselte Summe stimmt mit den Teststimmen ueberein
+
+
+Phase 2 - Chain-Speicher fuer verschluesselte Ballots
+-----------------------------------------------------
+
+[ ] Vote-Datenmodell umbauen:
+    - keine `vote_option` als Klartext auf der Chain speichern
+    - stattdessen `encrypted_vote` oder `encrypted_ballot` speichern.
+
+[ ] Fuer mehrere Optionen spaeter einen Vektor speichern:
+    - Option A: [Enc(1), Enc(0), Enc(0)]
+    - Option B: [Enc(0), Enc(1), Enc(0)]
+    - Option C: [Enc(0), Enc(0), Enc(1)]
+
+[ ] Ergebnislogik umbauen:
+    - nicht lokale Klarstimmen zaehlen
+    - alle Ciphertexts homomorph aggregieren
+    - verschluesselte Gesamtsumme speichern/veroeffentlichen.
+
+[ ] Oeffentliche API ergaenzen:
+    - alle verschluesselten Ballots abrufen
+    - verschluesselte Gesamtsumme abrufen
+    - veroeffentlichtes Ergebnis abrufen
+    - Verifikationsstatus abrufen.
+
+
+Phase 3 - Gueltigkeitsbeweise fuer Stimmen
+------------------------------------------
+
+[ ] Klaeren, welches ZK-Proof-Verfahren genutzt werden soll.
+
+[ ] Fuer Ja/Nein-Wahl beweisen:
+    - verschluesselte Stimme ist entweder 0 oder 1.
+
+[ ] Fuer Mehrfachoptionen beweisen:
+    - genau eine Option ist 1
+    - alle anderen Optionen sind 0.
+
+[ ] Chain/Nodes muessen ungueltige Ballots ablehnen.
+
+[ ] Tests schreiben:
+    - Enc(0) wird akzeptiert
+    - Enc(1) wird akzeptiert
+    - Enc(2), Enc(999) oder mehrere gesetzte Optionen werden abgelehnt.
+
+
+Phase 4 - Anonyme Wahlberechtigung und Double Voting
+----------------------------------------------------
+
+[ ] Namen duerfen nicht auf der Chain gespeichert werden.
+
+[ ] Wahlberechtigung anonym beweisen:
+    - z.B. ueber Semaphore oder ein vergleichbares ZK-Membership-System.
+
+[ ] Double Voting ueber `nullifier_hash` verhindern:
+    - pro Wahl ist jeder Nullifier nur einmal erlaubt
+    - Nullifier darf nicht direkt auf die Person zurueckfuehren.
+
+[ ] Aktuelle lokale Commitment-Loesung spaeter ersetzen:
+    - aktuell verhindert `voted_commitments` doppelte Stimmen in der Demo
+    - Ziel ist ein anonymer Nullifier statt Commitment als Identifikator.
+
+
+Phase 5 - Wahlkomitee und Threshold Decryption
+----------------------------------------------
+
+[ ] Privaten Entschluesselungsschluessel nicht bei einer einzelnen Person
+    speichern.
+
+[ ] Threshold-Verfahren planen:
+    - z.B. 3 von 5 Komitee-Mitgliedern muessen zustimmen
+    - einzelne Key Shares reichen nicht zum Entschluesseln.
+
+[ ] Komitee entschluesselt nur die homomorph aggregierte Gesamtsumme.
+
+[ ] Komitee veroeffentlicht:
+    - Ergebnis
+    - Partial Decryptions
+    - kryptografische Beweise, dass die Partial Decryptions korrekt sind.
+
+[ ] Jeder Node kann pruefen:
+    - Partial Decryptions sind gueltig
+    - Ergebnis passt zur verschluesselten Gesamtsumme.
+
+
+Phase 6 - Oeffentliche Verifikation
+-----------------------------------
+
+[ ] Jeder Node soll lokal nachvollziehen koennen:
+    - alle Ballots sind gueltig
+    - kein Nullifier kommt doppelt vor
+    - alle gueltigen Ballots sind in die Summe eingegangen
+    - die veroeffentlichte verschluesselte Summe ist korrekt
+    - das entschluesselte Ergebnis passt zur verschluesselten Summe.
+
+[ ] Verifikationsfunktion/API bauen:
+    - `GET /api/verify/{election_id}` soll diese Checks spaeter abbilden.
+
+[ ] Ergebnis darf nur als gueltig gelten, wenn alle Checks bestanden sind.
+
+
+Phase 7 - Verteilte Nodes statt lokaler Demo-Chain
+-------------------------------------------------
+
+[ ] Entscheiden, ob die Verteilung selbst gebaut wird oder ob eine bestehende
+    Blockchain/Smart-Contract-Plattform genutzt wird.
+
+[ ] Falls eigene Nodes:
+    - Node-Identitaeten verwalten
+    - Peer Discovery planen
+    - Konsensmechanismus definieren
+    - Konflikte/Forks behandeln
+    - Persistente Speicherung einbauen.
+
+[ ] Falls Smart Contract:
+    - VotingContract.sol ueberarbeiten
+    - verschluesselte Ballots und Nullifier speichern
+    - Proof-Verifikation on-chain oder verifizierbar off-chain planen
+    - Deployment und Tests ergaenzen.
+
+
+Offene Forschungsfragen
+-----------------------
+
+[ ] Welches homomorphe Verfahren ist fuer das Projekt am besten geeignet?
+    - Paillier: gut verstaendlich fuer additive Tally-Demo
+    - ElGamal: naeher an moderner Wahlkryptografie und Threshold-Decryption.
+
+[ ] Wie wird Threshold Decryption praktisch umgesetzt?
+
+[ ] Welche ZK-Proofs sind fuer gueltige verschluesselte Stimmen realistisch?
+
+[ ] Wie wird die Wahlberechtigung ausgegeben, ohne Namen on-chain zu speichern?
+
+[ ] Welche Metadaten werden bewusst ignoriert und welche muessen doch reduziert
+    werden, z.B. Timing, IP, Reihenfolge der Ballots?
+
+[ ] Wie wird verhindert, dass einzelne Stimmen entschluesselt oder durch kleine
+    Gruppen eindeutig zugeordnet werden koennen?
+
+
+Naechster konkreter Schritt
+---------------------------
+
+[ ] `crypto_tally.py` als Mini-Prototyp bauen:
+    - Ja/Nein-Stimmen verschluesseln
+    - Ciphertexts oeffentlich speichern
+    - Ciphertexts homomorph aggregieren
+    - Gesamtsumme entschluesseln
+    - Verifikation per Tests demonstrieren.
