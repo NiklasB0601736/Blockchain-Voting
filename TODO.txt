@@ -19,7 +19,7 @@ Projektziel
 Phase 1 - Homomorphe Verschluesselung als Prototyp
 --------------------------------------------------
 
-[ ] Ein kleines Kryptografie-Modul bauen, z.B. `crypto_tally.py`.
+[x] Ein kleines Kryptografie-Modul bauen, z.B. `crypto_tally.py`.
 
 [ ] Zuerst eine Ja/Nein-Wahl als Demo implementieren:
     - Nein = 0
@@ -31,13 +31,13 @@ Phase 1 - Homomorphe Verschluesselung als Prototyp
     - Enc(1) muss bei jeder Abgabe anders aussehen koennen
     - die Zufallswerte/Nonces duerfen nicht auf der Chain stehen.
 
-[ ] Homomorphe Aggregation zeigen:
+[x] Homomorphe Aggregation zeigen:
     - Enc(v1) + Enc(v2) + ... = Enc(total)
     - je nach Verfahren kann die Operation intern Multiplikation sein.
 
-[ ] Nur das Gesamtergebnis entschluesseln, niemals einzelne Stimmen.
+[x] Nur das Gesamtergebnis entschluesseln, niemals einzelne Stimmen.
 
-[ ] Tests schreiben:
+[x] Tests schreiben:
     - gleiche Stimme erzeugt unterschiedliche Ciphertexts
     - verschluesselte Stimmen lassen sich korrekt aggregieren
     - entschluesselte Summe stimmt mit den Teststimmen ueberein
@@ -185,7 +185,7 @@ Offene Forschungsfragen
 Naechster konkreter Schritt
 ---------------------------
 
-[ ] `crypto_tally.py` als Mini-Prototyp bauen:
+[x] `crypto_tally.py` als Mini-Prototyp bauen:
     - Ja/Nein-Stimmen verschluesseln
     - Ciphertexts oeffentlich speichern
     - Ciphertexts homomorph aggregieren
