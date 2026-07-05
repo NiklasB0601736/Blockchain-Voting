@@ -1,0 +1,204 @@
+PLAN - Optionaler LAN-Test mit mehreren Rechnern
+===============================================
+
+Ziel
+----
+
+Die normale Abschlussdemo soll erstmal lokal auf einem Rechner mit mehreren
+Nodes laufen, z.B. Port 5001, 5002 und 5003. Das ist stabiler und zeigt bereits
+mehrere unabhaengige Node-Prozesse, eigene Data-Dirs, Mempools, Chain-Dateien
+und Peer-Sync.
+
+Falls spaeter ein Test mit einem Kommilitonen auf einem zweiten Rechner gemacht
+werden soll, beschreibt diese Datei den Plan dafuer.
+
+
+Warum nicht sofort?
+-------------------
+
+[ ] Rechner-uebergreifende Tests haengen stark von Netzwerkumgebung ab.
+
+[ ] Im selben WLAN/LAN kann es funktionieren, aber Firewall, Uni-WLAN,
+    Router-Isolation oder macOS-Sicherheitsdialoge koennen stoeren.
+
+[ ] Ueber das Internet waere es deutlich komplexer:
+    - NAT
+    - Router-Portfreigabe
+    - oeffentliche IP
+    - Firewall
+    - Sicherheitsrisiko
+    - optional Tunnel/VPN
+
+[ ] Fuer die Projektpraesentation ist eine lokale Multi-Node-Demo auf einem
+    Rechner kontrollierbarer und wahrscheinlich ueberzeugender.
+
+
+Geplanter Minimal-Umbau
+-----------------------
+
+[ ] `blockchainV1.py` soll einen konfigurierbaren Host bekommen.
+
+    Aktuell:
+
+        uvicorn.run("blockchainV1:app", host="127.0.0.1", port=port, reload=reload)
+
+    Ziel:
+
+        host = os.environ.get("HOST", "127.0.0.1")
+        uvicorn.run("blockchainV1:app", host=host, port=port, reload=reload)
+
+[ ] `v2_node_launcher.py` soll ein Feld fuer `HOST` bekommen.
+
+    Default:
+
+        127.0.0.1
+
+    LAN-Test:
+
+        0.0.0.0
+
+[ ] Der Launcher soll sichtbar erklaeren:
+
+    - `127.0.0.1` bedeutet: nur dieser Rechner.
+    - `0.0.0.0` bedeutet: im lokalen Netzwerk erreichbar, falls Firewall/LAN es
+      erlaubt.
+
+[ ] README um LAN-Hinweise ergaenzen.
+
+
+LAN-Test Ablauf
+---------------
+
+[ ] Rechner A startet Node 1.
+
+    Beispiel:
+
+        HOST=0.0.0.0
+        PORT=5001
+        NODE_ID=node1
+        DATA_DIR=.node-data/node1
+
+[ ] Rechner A findet lokale IP heraus.
+
+    macOS:
+
+        ipconfig getifaddr en0
+
+    Beispiel-Ergebnis:
+
+        192.168.178.42
+
+[ ] Rechner B testet, ob Node 1 erreichbar ist.
+
+    Im Browser:
+
+        http://192.168.178.42:5001/api/v2/node/info
+
+[ ] Falls nicht erreichbar:
+
+    - Pruefen, ob beide im selben WLAN/LAN sind.
+    - macOS Firewall pruefen.
+    - Uni-/Gast-WLAN kann Client-Isolation haben.
+    - Port 5001 darf nicht von anderer Software blockiert sein.
+    - Node muss wirklich mit `HOST=0.0.0.0` laufen.
+
+[ ] Rechner B startet eigene Node 2.
+
+    Beispiel:
+
+        HOST=0.0.0.0
+        PORT=5002
+        NODE_ID=node2
+        DATA_DIR=.node-data/node2
+        PEERS=http://192.168.178.42:5001
+
+[ ] Node 2 ruft Sync auf.
+
+    Browser/API:
+
+        POST http://<rechner-b-ip>:5002/api/v2/sync
+
+    Oder im Dashboard:
+
+        Peer eintragen -> Sync klicken
+
+
+Was in der Demo sichtbar sein soll
+----------------------------------
+
+[ ] Rechner A erstellt Wahl auf Node 1.
+
+[ ] Node 1 mined Block.
+
+[ ] Rechner B synced Node 2 von Node 1.
+
+[ ] Node 2 zeigt dieselbe Chain und dieselbe Wahl.
+
+[ ] Voter Client sendet Stimme an Node 1.
+
+[ ] Node 1 mined Block mit `cast_encrypted_vote`.
+
+[ ] Node 2 synced erneut.
+
+[ ] Node 2 zeigt:
+
+    - gleiche Chain-Laenge
+    - gleichen neuesten Blockhash
+    - gleiche encrypted Ballots
+    - gleichen Verify-Status
+
+
+Sicherheitsgrenzen
+------------------
+
+[ ] LAN-Test ist nur fuer Demo/Lernen.
+
+[ ] Nicht dauerhaft mit `HOST=0.0.0.0` in unsicheren Netzen laufen lassen.
+
+[ ] Keine privaten Committee-State-Dateien teilen.
+
+[ ] Keine echten personenbezogenen Daten als `voter_secret` verwenden.
+
+[ ] Keine Router-Portfreigabe ins Internet ohne gesonderten Sicherheitsplan.
+
+
+Akzeptanzkriterien
+------------------
+
+[ ] Node 1 ist von Rechner B ueber `/api/v2/node/info` erreichbar.
+
+[ ] Node 2 kann Node 1 als Peer speichern.
+
+[ ] Node 2 kann von Node 1 synchronisieren.
+
+[ ] Eine auf Node 1 geminte Wahl ist nach Sync auf Node 2 sichtbar.
+
+[ ] Eine auf Node 1 geminte verschluesselte Stimme ist nach Sync auf Node 2
+    sichtbar.
+
+[ ] `/api/v2/elections/{election_id}/verify` liefert auf beiden Nodes denselben
+    Status.
+
+
+Fallback
+--------
+
+Falls LAN/Firewall/Uni-WLAN Probleme macht:
+
+[ ] Lokale Multi-Node-Demo auf einem Rechner verwenden.
+
+[ ] Drei Nodes starten:
+
+    - Node 1: http://127.0.0.1:5001
+    - Node 2: http://127.0.0.1:5002
+    - Node 3: http://127.0.0.1:5003
+
+[ ] Gleiche Demo zeigen:
+
+    - Wahl auf Node 1 erstellen
+    - Block minen
+    - Node 2/3 syncen
+    - Vote auf Node 1 abgeben
+    - Block minen
+    - Node 2/3 syncen
+

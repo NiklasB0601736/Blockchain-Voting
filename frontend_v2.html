@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V2 Distributed Voting Dashboard</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: #f5f7fb;
+            color: #172033;
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            line-height: 1.45;
+        }
+
+        header {
+            background: #111827;
+            color: #f9fafb;
+            padding: 24px 32px;
+        }
+
+        h1 {
+            margin: 0 0 8px;
+            font-size: 28px;
+            letter-spacing: 0;
+        }
+
+        h2 {
+            margin: 0 0 14px;
+            font-size: 18px;
+            letter-spacing: 0;
+        }
+
+        h3 {
+            margin: 18px 0 8px;
+            font-size: 15px;
+            letter-spacing: 0;
+        }
+
+        .subtitle {
+            margin: 0;
+            color: #cbd5e1;
+            max-width: 980px;
+        }
+
+        main {
+            padding: 24px;
+        }
+
+        .toolbar {
+            display: grid;
+            grid-template-columns: minmax(260px, 1fr) minmax(260px, 1fr) minmax(180px, auto);
+            gap: 12px;
+            align-items: end;
+            margin-bottom: 20px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 16px;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .panel {
+            background: #ffffff;
+            border: 1px solid #d8dee9;
+            border-radius: 8px;
+            padding: 16px;
+            min-width: 0;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+        }
+
+        .span-3 { grid-column: span 3; }
+        .span-4 { grid-column: span 4; }
+        .span-5 { grid-column: span 5; }
+        .span-6 { grid-column: span 6; }
+        .span-7 { grid-column: span 7; }
+        .span-8 { grid-column: span 8; }
+        .span-12 { grid-column: span 12; }
+
+        label {
+            display: block;
+            margin-bottom: 6px;
+            color: #475569;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        input, textarea, select {
+            width: 100%;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            padding: 9px 10px;
+            background: #ffffff;
+            color: #172033;
+            font: inherit;
+            min-height: 38px;
+        }
+
+        textarea {
+            min-height: 155px;
+            resize: vertical;
+        }
+
+        button {
+            border: 1px solid #2563eb;
+            border-radius: 6px;
+            padding: 9px 12px;
+            background: #2563eb;
+            color: #ffffff;
+            font-weight: 700;
+            cursor: pointer;
+            min-height: 38px;
+        }
+
+        button.secondary {
+            background: #ffffff;
+            color: #1d4ed8;
+        }
+
+        button.danger {
+            border-color: #b91c1c;
+            background: #b91c1c;
+        }
+
+        .button-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .metric {
+            border: 1px solid #e2e8f0;
+            border-radius: 7px;
+            padding: 10px;
+            background: #f8fafc;
+        }
+
+        .metric .value {
+            display: block;
+            margin-top: 4px;
+            font-size: 20px;
+            font-weight: 800;
+            color: #0f172a;
+        }
+
+        .ok { color: #15803d; font-weight: 800; }
+        .bad { color: #b91c1c; font-weight: 800; }
+        .muted { color: #64748b; }
+
+        .list {
+            display: grid;
+            gap: 8px;
+            max-height: 380px;
+            overflow: auto;
+        }
+
+        .item {
+            border: 1px solid #e2e8f0;
+            border-radius: 7px;
+            padding: 10px;
+            background: #fbfdff;
+        }
+
+        .item.active {
+            border-color: #2563eb;
+            background: #eff6ff;
+        }
+        .feedback {
+            border: 1px solid #d7dee9;
+            border-radius: 7px;
+            padding: 10px;
+            margin-bottom: 16px;
+            background: #f8fafc;
+            min-height: 42px;
+        }
+        .feedback.pending {
+            border-color: #2563eb;
+            background: #eff6ff;
+        }
+        .feedback.success {
+            border-color: #16a34a;
+            background: #f0fdf4;
+        }
+        .feedback.error {
+            border-color: #dc2626;
+            background: #fef2f2;
+        }
+
+        .candidate-preview {
+            display: grid;
+            gap: 6px;
+            margin-top: 10px;
+        }
+
+        .candidate-row {
+            display: grid;
+            grid-template-columns: 52px 1fr;
+            gap: 8px;
+            align-items: center;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 7px 9px;
+            background: #f8fafc;
+        }
+
+        .mono, pre {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 12px;
+            overflow-wrap: anywhere;
+        }
+
+        pre {
+            margin: 0;
+            background: #0f172a;
+            color: #e2e8f0;
+            border-radius: 7px;
+            padding: 12px;
+            min-height: 120px;
+            max-height: 420px;
+            overflow: auto;
+            white-space: pre-wrap;
+        }
+
+        .flow {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 8px;
+            align-items: stretch;
+        }
+
+        .flow-step {
+            border: 1px solid #d8dee9;
+            border-radius: 7px;
+            background: #ffffff;
+            padding: 10px;
+            min-height: 82px;
+        }
+
+        .flow-step strong {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        @media (max-width: 980px) {
+            .toolbar,
+            .status-grid,
+            .flow,
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .span-3,
+            .span-4,
+            .span-5,
+            .span-6,
+            .span-7,
+            .span-8,
+            .span-12 {
+                grid-column: span 12;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>V2 Distributed Voting Dashboard</h1>
+        <p class="subtitle">Live-Sicht auf das, was der aktuelle Code bereits kann: Node-Status, Mempool, signierte Bloeke, verschluesselte Ballots, Tally-Publish und oeffentliche Verifikation.</p>
+    </header>
+
+    <main>
+        <section class="toolbar">
+            <div>
+                <label for="apiUrl">Aktive Node API</label>
+                <input id="apiUrl" value="http://127.0.0.1:5001">
+            </div>
+            <div>
+                <label for="peerUrl">Peer URL</label>
+                <input id="peerUrl" value="http://127.0.0.1:5002">
+            </div>
+            <div class="button-row">
+                <button onclick="refreshAll()">Refresh</button>
+                <button class="secondary" onclick="addPeer()">Peer add</button>
+                <button class="secondary" onclick="syncNode()">Sync</button>
+                <button onclick="mineBlock()">Mine</button>
+            </div>
+        </section>
+
+        <div id="dashboardFeedback" class="feedback muted">Bereit. Noch keine Dashboard-Aktion ausgefuehrt.</div>
+
+        <section class="grid">
+            <div class="panel span-12">
+                <h2>Aktueller Ablauf</h2>
+                <div class="flow">
+                    <div class="flow-step">
+                        <strong>1. Client</strong>
+                        <span class="muted">Petlib verschluesselt Vote off-chain.</span>
+                    </div>
+                    <div class="flow-step">
+                        <strong>2. Transaction</strong>
+                        <span class="muted">encrypted_ballot + nullifier geht an Node.</span>
+                    </div>
+                    <div class="flow-step">
+                        <strong>3. Mempool</strong>
+                        <span class="muted">Node prueft Regeln vor Blockaufnahme.</span>
+                    </div>
+                    <div class="flow-step">
+                        <strong>4. Block</strong>
+                        <span class="muted">Validator signiert mit Ed25519.</span>
+                    </div>
+                    <div class="flow-step">
+                        <strong>5. Sync</strong>
+                        <span class="muted">Peers uebernehmen laengere gueltige Chain.</span>
+                    </div>
+                    <div class="flow-step">
+                        <strong>6. Verify</strong>
+                        <span class="muted">Jeder prueft Tally und Proofs.</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel span-12">
+                <h2>Node Status</h2>
+                <div class="status-grid" id="nodeMetrics"></div>
+            </div>
+
+            <div class="panel span-12">
+                <h2>Multi-Node Monitor</h2>
+                <div class="form-grid">
+                    <div>
+                        <label for="networkNodeUrls">Node URLs, eine pro Zeile</label>
+                        <textarea id="networkNodeUrls" style="min-height: 88px;">http://127.0.0.1:5001
+http://127.0.0.1:5002
+http://127.0.0.1:5003</textarea>
+                    </div>
+                    <div>
+                        <label>Ablauf</label>
+                        <div class="item muted">
+                            Mine auf der aktiven Node, fuege Peers hinzu oder nutze das Demo-Netzwerk-Skript, dann aktualisiere diese Sicht. Gleiche Chain-Length und gleicher Latest-Hash bedeuten: die Nodes sehen denselben Chain-Stand.
+                        </div>
+                        <div class="button-row" style="margin-top: 10px;">
+                            <button class="secondary" onclick="refreshNodeMonitor()">Nodes vergleichen</button>
+                            <button class="secondary" onclick="copyMonitorUrlsToPeer()">Erste andere Node als Peer setzen</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="networkMonitor" class="list" style="margin-top: 12px;"></div>
+            </div>
+
+            <div class="panel span-12">
+                <h2>Wahl erstellen</h2>
+                <div class="form-grid">
+                    <div>
+                        <label for="createTitle">Wahltitel</label>
+                        <input id="createTitle" value="Demo Election">
+                    </div>
+                    <div>
+                        <label for="createDuration">Dauer in Minuten</label>
+                        <input id="createDuration" type="number" min="1" value="60">
+                    </div>
+                    <div>
+                        <label for="createCandidates">Kandidaten, eine Zeile oder Komma getrennt</label>
+                        <textarea id="createCandidates" oninput="renderCandidatePreview()">Alice
+Bob
+Charlie</textarea>
+                    </div>
+                    <div>
+                        <div class="form-grid">
+                            <div>
+                                <label for="createMemberCount">Committee Members</label>
+                                <input id="createMemberCount" type="number" min="1" value="5">
+                            </div>
+                            <div>
+                                <label for="createThreshold">Threshold</label>
+                                <input id="createThreshold" type="number" min="1" value="3">
+                            </div>
+                        </div>
+                        <label style="margin-top: 12px;">
+                            <input id="createMine" type="checkbox" style="width: auto; min-height: auto;" checked>
+                            Direkt Block minen
+                        </label>
+                        <h3>Kandidaten-Indizes</h3>
+                        <div id="candidatePreview" class="candidate-preview"></div>
+                    </div>
+                </div>
+                <div class="button-row" style="margin-top: 12px;">
+                    <button onclick="createDemoElection()">Wahl als v2-Transaktion erstellen</button>
+                    <button class="secondary" onclick="fillCreateElectionRaw()">Als Raw JSON in Composer laden</button>
+                </div>
+                <div id="createElectionStatus" class="list" style="margin-top: 12px;"></div>
+            </div>
+
+            <div class="panel span-4">
+                <h2>Elections</h2>
+                <div class="list" id="electionList"></div>
+            </div>
+
+            <div class="panel span-4">
+                <h2>Mempool</h2>
+                <div class="list" id="mempoolList"></div>
+            </div>
+
+            <div class="panel span-4">
+                <h2>Latest Block</h2>
+                <div id="latestBlockSummary" class="item muted"></div>
+            </div>
+
+            <div class="panel span-6">
+                <h2>Election Details</h2>
+                <div class="button-row" style="margin-bottom: 10px;">
+                    <button class="secondary" onclick="loadElectionData()">Load selected</button>
+                    <button class="secondary" onclick="verifySelectedElection()">Verify</button>
+                </div>
+                <div id="electionDetails" class="list"></div>
+            </div>
+
+            <div class="panel span-6">
+                <h2>Public Verification</h2>
+                <div id="verifyPanel" class="list"></div>
+            </div>
+
+            <div class="panel span-5">
+                <h2>Transaction Composer</h2>
+                <label for="txType">Type</label>
+                <select id="txType">
+                    <option value="create_election">create_election</option>
+                    <option value="register_voter">register_voter</option>
+                    <option value="cast_encrypted_vote">cast_encrypted_vote</option>
+                    <option value="finalize_election">finalize_election</option>
+                    <option value="publish_tally_result">publish_tally_result</option>
+                </select>
+                <label for="txPayload" style="margin-top: 10px;">Payload JSON</label>
+                <textarea id="txPayload">{
+  "election_id": "demo-election"
+}</textarea>
+                <div class="button-row" style="margin-top: 10px;">
+                    <button onclick="submitTransaction()">Submit</button>
+                    <button class="secondary" onclick="fillFinalizeExample()">Finalize example</button>
+                </div>
+            </div>
+
+            <div class="panel span-7">
+                <h2>Raw JSON</h2>
+                <pre id="rawJson">{}</pre>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        let selectedElectionId = null;
+        let lastChain = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            renderCandidatePreview();
+            refreshAll();
+        });
+
+        function apiUrl() {
+            return document.getElementById('apiUrl').value.replace(/\/$/, '');
+        }
+
+        function escapeHtml(value) {
+            return String(value)
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#039;');
+        }
+
+        function shortHash(value) {
+            if (!value) return '-';
+            return String(value).slice(0, 14) + '...';
+        }
+
+        function showRaw(value) {
+            document.getElementById('rawJson').textContent = JSON.stringify(value, null, 2);
+        }
+
+        function setFeedback(state, text) {
+            const element = document.getElementById('dashboardFeedback');
+            element.className = `feedback ${state}`;
+            element.textContent = text;
+        }
+
+        function parseCandidates() {
+            return document.getElementById('createCandidates').value
+                .split(/\n|,/)
+                .map(candidate => candidate.trim())
+                .filter(Boolean);
+        }
+
+        function renderCandidatePreview() {
+            const candidates = parseCandidates();
+            const preview = document.getElementById('candidatePreview');
+            if (!candidates.length) {
+                preview.innerHTML = '<div class="item muted">Noch keine Kandidaten eingetragen</div>';
+                return;
+            }
+            preview.innerHTML = candidates.map((candidate, index) => `
+                <div class="candidate-row">
+                    <strong>#${index}</strong>
+                    <span>${escapeHtml(candidate)}</span>
+                </div>
+            `).join('');
+        }
+
+        async function requestJson(path, options = {}) {
+            const response = await fetch(`${apiUrl()}${path}`, options);
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data.detail || data.error || `HTTP ${response.status}`);
+            }
+            return data;
+        }
+
+        async function requestAbsoluteJson(baseUrl, path, options = {}) {
+            const response = await fetch(`${baseUrl.replace(/\/$/, '')}${path}`, options);
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data.detail || data.error || `HTTP ${response.status}`);
+            }
+            return data;
+        }
+
+        async function refreshAll() {
+            setFeedback('pending', 'Aktualisiere Node-Status, Chain, Mempool und Elections...');
+            try {
+                const [info, chain, mempool, elections] = await Promise.all([
+                    requestJson('/api/v2/node/info'),
+                    requestJson('/api/v2/chain'),
+                    requestJson('/api/v2/mempool'),
+                    requestJson('/api/v2/elections'),
+                ]);
+                lastChain = chain;
+                renderNode(info);
+                renderChain(chain);
+                renderMempool(mempool);
+                renderElections(elections);
+                showRaw({ info, chain, mempool, elections });
+                await refreshNodeMonitor(false);
+                setFeedback('success', `Aktualisiert: Chain ${info.chain_length} Block(s), Mempool ${info.mempool_size} Transaktion(en).`);
+            } catch (error) {
+                setFeedback('error', `Refresh fehlgeschlagen: ${error.message}`);
+            }
+        }
+
+        function monitorUrls() {
+            return document.getElementById('networkNodeUrls').value
+                .split(/\n|,/)
+                .map(url => url.trim())
+                .filter(Boolean);
+        }
+
+        function copyMonitorUrlsToPeer() {
+            const urls = monitorUrls();
+            const active = apiUrl();
+            const peer = urls.find(url => url.replace(/\/$/, '') !== active);
+            if (!peer) {
+                setFeedback('error', 'Keine andere Node-URL im Multi-Node Monitor gefunden.');
+                return;
+            }
+            document.getElementById('peerUrl').value = peer;
+            setFeedback('success', `Peer-Feld gesetzt auf ${peer}. Klicke jetzt Peer add und danach Sync.`);
+        }
+
+        async function refreshNodeMonitor(showFeedback = true) {
+            const monitor = document.getElementById('networkMonitor');
+            const urls = monitorUrls();
+            if (!urls.length) {
+                monitor.innerHTML = '<div class="item muted">Keine Node-URLs eingetragen.</div>';
+                return;
+            }
+            if (showFeedback) {
+                setFeedback('pending', 'Vergleiche lokale Nodes...');
+            }
+
+            const results = await Promise.all(urls.map(async url => {
+                try {
+                    const info = await requestAbsoluteJson(url, '/api/v2/node/info');
+                    return { url, ok: true, info };
+                } catch (error) {
+                    return { url, ok: false, error: error.message };
+                }
+            }));
+            const online = results.filter(result => result.ok);
+            const referenceHash = online.length ? online[0].info.latest_block_hash : null;
+            const referenceLength = online.length ? online[0].info.chain_length : null;
+            const allSynced = online.length > 1 && online.every(result =>
+                result.info.latest_block_hash === referenceHash && result.info.chain_length === referenceLength
+            );
+
+            monitor.innerHTML = results.map(result => {
+                if (!result.ok) {
+                    return `
+                        <div class="item">
+                            <strong>${escapeHtml(result.url)}</strong>
+                            <div class="bad">offline oder nicht erreichbar</div>
+                            <div class="mono">${escapeHtml(result.error)}</div>
+                        </div>
+                    `;
+                }
+                const synced = result.info.latest_block_hash === referenceHash && result.info.chain_length === referenceLength;
+                return `
+                    <div class="item">
+                        <strong>${escapeHtml(result.info.node_id)}</strong>
+                        <div class="mono">${escapeHtml(result.url)}</div>
+                        <div>chain: ${result.info.chain_length} | mempool: ${result.info.mempool_size} | validator: ${result.info.is_validator ? 'yes' : 'no'}</div>
+                        <div>latest: <span class="mono">${escapeHtml(shortHash(result.info.latest_block_hash))}</span></div>
+                        <div class="${synced ? 'ok' : 'bad'}">${synced ? 'gleich wie Referenz' : 'anderer Chain-Stand'}</div>
+                    </div>
+                `;
+            }).join('') + `
+                <div class="item">
+                    <strong>Sync-Status</strong>
+                    <span class="${allSynced ? 'ok' : 'muted'}">${allSynced ? 'mehrere Nodes sind synchron' : 'Starte mehrere Nodes und synchronisiere sie fuer den Vergleich'}</span>
+                </div>
+            `;
+
+            if (showFeedback) {
+                setFeedback(allSynced ? 'success' : 'pending', allSynced ? 'Nodes haben gleiche Chain-Length und gleichen Latest-Hash.' : 'Node-Vergleich geladen. Noch sind nicht mehrere Nodes synchron.');
+            }
+        }
+
+        function renderNode(info) {
+            document.getElementById('nodeMetrics').innerHTML = `
+                <div class="metric">Node<span class="value">${escapeHtml(info.node_id)}</span></div>
+                <div class="metric">Validator<span class="value ${info.is_validator ? 'ok' : 'bad'}">${info.is_validator ? 'yes' : 'no'}</span></div>
+                <div class="metric">Chain<span class="value">${info.chain_length}</span></div>
+                <div class="metric">Mempool<span class="value">${info.mempool_size}</span></div>
+                <div class="metric">Peers<span class="value">${info.peers.length}</span></div>
+                <div class="metric">Validators<span class="value">${Object.keys(info.validators).length}</span></div>
+                <div class="metric">Latest<span class="value mono">${escapeHtml(shortHash(info.latest_block_hash))}</span></div>
+                <div class="metric">Data dir<span class="value mono">${escapeHtml(info.data_dir)}</span></div>
+            `;
+        }
+
+        function renderChain(chain) {
+            const latest = chain.chain[chain.chain.length - 1];
+            document.getElementById('latestBlockSummary').innerHTML = `
+                <div><strong>#${latest.index}</strong> signed by <strong>${escapeHtml(latest.validator_id)}</strong></div>
+                <div class="mono">hash: ${escapeHtml(latest.block_hash)}</div>
+                <div class="mono">prev: ${escapeHtml(latest.previous_hash)}</div>
+                <div>transactions: ${latest.transactions.length}</div>
+                <button class="secondary" style="margin-top: 8px;" onclick="showRaw(lastChain)">Show full chain</button>
+            `;
+        }
+
+        function renderMempool(mempool) {
+            const list = document.getElementById('mempoolList');
+            if (!mempool.transactions.length) {
+                list.innerHTML = '<div class="item muted">Mempool empty</div>';
+                return;
+            }
+            list.innerHTML = mempool.transactions.map(tx => `
+                <div class="item">
+                    <strong>${escapeHtml(tx.type)}</strong>
+                    <div class="mono">${escapeHtml(shortHash(tx.tx_id))}</div>
+                    <button class="secondary" style="margin-top: 8px;" onclick='showRaw(${JSON.stringify(tx)})'>Show tx</button>
+                </div>
+            `).join('');
+        }
+
+        function renderElections(elections) {
+            const list = document.getElementById('electionList');
+            if (!elections.elections.length) {
+                list.innerHTML = '<div class="item muted">No elections committed yet</div>';
+                return;
+            }
+            list.innerHTML = elections.elections.map(election => {
+                const active = selectedElectionId === election.election_id ? ' active' : '';
+                return `
+                    <div class="item${active}">
+                        <strong>${escapeHtml(election.title)}</strong>
+                        <div class="mono">${escapeHtml(election.election_id)}</div>
+                        <div>votes: ${election.encrypted_votes} | result: ${election.has_published_result ? 'published' : 'open'}</div>
+                        <button style="margin-top: 8px;" onclick="selectElection('${escapeHtml(election.election_id)}')">Select</button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function selectElection(electionId) {
+            selectedElectionId = electionId;
+            await loadElectionData();
+            await verifySelectedElection();
+            await refreshAll();
+        }
+
+        async function loadElectionData() {
+            if (!selectedElectionId) {
+                document.getElementById('electionDetails').innerHTML = '<div class="item muted">Select an election first</div>';
+                setFeedback('error', 'Keine Wahl ausgewaehlt.');
+                return;
+            }
+            setFeedback('pending', 'Lade Wahldetails, encrypted Ballots, Tally und Published Result...');
+            try {
+                const [election, ballots, tally, result] = await Promise.all([
+                    requestJson(`/api/v2/elections/${selectedElectionId}`),
+                    requestJson(`/api/v2/elections/${selectedElectionId}/encrypted-ballots`),
+                    requestJson(`/api/v2/elections/${selectedElectionId}/encrypted-tally`),
+                    requestJson(`/api/v2/elections/${selectedElectionId}/published-result`),
+                ]);
+                document.getElementById('electionDetails').innerHTML = `
+                    <div class="item">
+                        <strong>${escapeHtml(election.title)}</strong>
+                        <div class="mono">${escapeHtml(election.election_id)}</div>
+                        <div>options: ${election.options.map(escapeHtml).join(', ')}</div>
+                        <div>registered: ${election.registered_voters} | encrypted votes: ${election.encrypted_votes}</div>
+                        <div>threshold: ${election.committee.threshold} / ${election.committee.member_count}</div>
+                    </div>
+                    <div class="item">
+                        <strong>Encrypted ballots</strong>
+                        <div>${ballots.encrypted_ballots.length} committed</div>
+                        <button class="secondary" style="margin-top: 8px;" onclick='showRaw(${JSON.stringify(ballots)})'>Show ballots</button>
+                    </div>
+                    <div class="item">
+                        <strong>Encrypted tally</strong>
+                        <div>${tally.encrypted_tally ? 'available' : 'not available yet'}</div>
+                        <button class="secondary" style="margin-top: 8px;" onclick='showRaw(${JSON.stringify(tally)})'>Show tally</button>
+                    </div>
+                    <div class="item">
+                        <strong>Published result</strong>
+                        <div>${result.published_result ? 'available' : 'not published yet'}</div>
+                        <button class="secondary" style="margin-top: 8px;" onclick='showRaw(${JSON.stringify(result)})'>Show result</button>
+                    </div>
+                `;
+                setFeedback('success', `Wahldetails geladen: ${ballots.encrypted_ballots.length} encrypted Ballot(s).`);
+            } catch (error) {
+                setFeedback('error', `Wahldetails konnten nicht geladen werden: ${error.message}`);
+            }
+        }
+
+        async function verifySelectedElection() {
+            if (!selectedElectionId) {
+                document.getElementById('verifyPanel').innerHTML = '<div class="item muted">Select an election first</div>';
+                setFeedback('error', 'Keine Wahl fuer Verify ausgewaehlt.');
+                return;
+            }
+            setFeedback('pending', 'Pruefe Chain, Nullifier, encrypted Tally und published Result...');
+            try {
+                const verification = await requestJson(`/api/v2/elections/${selectedElectionId}/verify`);
+                const checks = verification.checks;
+                const labels = {
+                    chain_valid: 'Chain komplett gueltig',
+                    nullifiers_unique: 'Nullifier eindeutig',
+                    encrypted_ballots_importable: 'Encrypted Ballots lesbar',
+                    encrypted_tally_matches_ballots: 'Encrypted Ballots aggregierbar',
+                    published_encrypted_tally_matches_ballots: 'Published encrypted Tally passt',
+                    partial_decryption_proofs_valid: 'Partial Decryption Proofs gueltig',
+                    plaintext_tally_matches_decryption: 'Plaintext Result passt zur Entschluesselung',
+                    published_result_valid: 'Published Result insgesamt gueltig',
+                };
+                document.getElementById('verifyPanel').innerHTML = Object.entries(checks).map(([name, value]) => `
+                    <div class="item">
+                        <strong>${escapeHtml(labels[name] || name)}</strong>
+                        <div class="mono muted">${escapeHtml(name)}</div>
+                        <span class="${value === false ? 'bad' : 'ok'}">${value === null ? 'not published yet' : String(value)}</span>
+                    </div>
+                `).join('') + `
+                    <div class="item">
+                        <strong>Overall</strong>
+                        <span class="${verification.valid ? 'ok' : 'bad'}">${verification.valid ? 'valid' : 'invalid'}</span>
+                        ${verification.published_details && verification.published_details.published_plaintext_tally ? `<div>published plaintext tally: ${verification.published_details.published_plaintext_tally.join(', ')}</div>` : ''}
+                        ${verification.published_details && verification.published_details.error ? `<div class="bad">${escapeHtml(verification.published_details.error)}</div>` : ''}
+                        <button class="secondary" style="margin-top: 8px;" onclick='showRaw(${JSON.stringify(verification)})'>Show verify JSON</button>
+                    </div>
+                `;
+                setFeedback(verification.valid ? 'success' : 'error', `Verify abgeschlossen: ${verification.valid ? 'valid' : 'invalid'}.`);
+            } catch (error) {
+                setFeedback('error', `Verify fehlgeschlagen: ${error.message}`);
+            }
+        }
+
+        async function addPeer() {
+            const peer = document.getElementById('peerUrl').value;
+            setFeedback('pending', `Fuege Peer hinzu: ${peer}`);
+            try {
+                const result = await requestJson('/api/v2/peers', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: peer }),
+                });
+                showRaw(result);
+                await refreshAll();
+                setFeedback('success', `Peer gespeichert: ${peer}`);
+            } catch (error) {
+                setFeedback('error', `Peer konnte nicht gespeichert werden: ${error.message}`);
+            }
+        }
+
+        async function syncNode() {
+            setFeedback('pending', 'Synchronisiere mit Peers...');
+            try {
+                const result = await requestJson('/api/v2/sync', { method: 'POST' });
+                showRaw(result);
+                await refreshAll();
+                setFeedback('success', `Sync fertig: adopted=${result.adopted_chain}, imported=${result.imported_transactions}.`);
+            } catch (error) {
+                setFeedback('error', `Sync fehlgeschlagen: ${error.message}`);
+            }
+        }
+
+        async function mineBlock() {
+            setFeedback('pending', 'Mempool wird als signierter Block gespeichert...');
+            try {
+                const result = await requestJson('/api/v2/blocks/mine', { method: 'POST' });
+                showRaw(result);
+                await refreshAll();
+                if (selectedElectionId) {
+                    await loadElectionData();
+                    await verifySelectedElection();
+                }
+                setFeedback('success', `Block #${result.block.index} wurde erstellt.`);
+            } catch (error) {
+                setFeedback('error', `Block konnte nicht erstellt werden: ${error.message}`);
+            }
+        }
+
+        async function submitTransaction() {
+            const txType = document.getElementById('txType').value;
+            setFeedback('pending', `Sende rohe ${txType} Transaktion in den Mempool...`);
+            try {
+                const payload = JSON.parse(document.getElementById('txPayload').value);
+                const result = await requestJson('/api/v2/transactions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type: txType, payload }),
+                });
+                showRaw(result);
+                await refreshAll();
+                setFeedback('success', `${txType} wurde in den Mempool gelegt.`);
+            } catch (error) {
+                setFeedback('error', `Transaktion fehlgeschlagen: ${error.message}`);
+            }
+        }
+
+        async function createDemoElection() {
+            const status = document.getElementById('createElectionStatus');
+            const payload = {
+                title: document.getElementById('createTitle').value,
+                candidates: parseCandidates(),
+                duration_minutes: Number(document.getElementById('createDuration').value),
+                member_count: Number(document.getElementById('createMemberCount').value),
+                threshold: Number(document.getElementById('createThreshold').value),
+                mine: document.getElementById('createMine').checked,
+            };
+            setFeedback('pending', 'Erzeuge Committee, create_election Transaktion und optional Block...');
+            try {
+                const result = await requestJson('/api/v2/demo/create-election', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                selectedElectionId = result.election_id;
+                status.innerHTML = `
+                    <div class="item">
+                        <strong>Wahl erstellt</strong>
+                        <div class="mono">${escapeHtml(result.election_id)}</div>
+                        <div>Transaktion: ${escapeHtml(shortHash(result.transaction.tx_id))}</div>
+                        <div>Private Demo-Shares: <span class="mono">${escapeHtml(result.private_committee_state_path)}</span></div>
+                    </div>
+                `;
+                showRaw(result);
+                await refreshAll();
+                await loadElectionData();
+                await verifySelectedElection();
+                setFeedback('success', result.block ? 'Wahl erstellt und direkt in einen Block geschrieben.' : 'Wahl erstellt und im Mempool abgelegt.');
+            } catch (error) {
+                status.innerHTML = `<div class="item bad">${escapeHtml(error.message)}</div>`;
+                setFeedback('error', `Wahl konnte nicht erstellt werden: ${error.message}`);
+            }
+        }
+
+        function fillCreateElectionRaw() {
+            const now = new Date();
+            const end = new Date(now.getTime() + Number(document.getElementById('createDuration').value) * 60 * 1000);
+            document.getElementById('txType').value = 'create_election';
+            document.getElementById('txPayload').value = JSON.stringify({
+                election_id: 'manual-election',
+                title: document.getElementById('createTitle').value,
+                options: parseCandidates(),
+                start_time: now.toISOString(),
+                end_time: end.toISOString(),
+                committee: {
+                    note: 'Raw create_election braucht eine echte Petlib committee public payload. Nutze fuer die Demo besser den Button Wahl erstellen.'
+                }
+            }, null, 2);
+        }
+
+        function fillFinalizeExample() {
+            document.getElementById('txType').value = 'finalize_election';
+            document.getElementById('txPayload').value = JSON.stringify({
+                election_id: selectedElectionId || 'demo-election',
+            }, null, 2);
+        }
+    </script>
+</body>
+</html>

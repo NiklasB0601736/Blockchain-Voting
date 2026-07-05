@@ -31,6 +31,12 @@ Phase 1 - Homomorphe Verschluesselung als Prototyp
     - Enc(1) muss bei jeder Abgabe anders aussehen koennen
     - die Zufallswerte/Nonces duerfen nicht auf der Chain stehen.
 
+[x] Exponential-ElGamal-Prototyp fuer Level 3 bauen:
+    - verschluesselte One-Hot-Kandidatenstimmen
+    - homomorphe Aggregation
+    - Entschluesselungsbeweis per Chaum-Pedersen-Proof
+    - oeffentliche Pruefung, dass das Ergebnis zum encrypted tally passt.
+
 [x] Homomorphe Aggregation zeigen:
     - Enc(v1) + Enc(v2) + ... = Enc(total)
     - je nach Verfahren kann die Operation intern Multiplikation sein.
@@ -107,21 +113,24 @@ Phase 4 - Anonyme Wahlberechtigung und Double Voting
 Phase 5 - Wahlkomitee und Threshold Decryption
 ----------------------------------------------
 
-[ ] Privaten Entschluesselungsschluessel nicht bei einer einzelnen Person
+[x] Privaten Entschluesselungsschluessel nicht bei einer einzelnen Person
     speichern.
 
-[ ] Threshold-Verfahren planen:
+[x] Threshold-Verfahren planen:
     - z.B. 3 von 5 Komitee-Mitgliedern muessen zustimmen
     - einzelne Key Shares reichen nicht zum Entschluesseln.
 
-[ ] Komitee entschluesselt nur die homomorph aggregierte Gesamtsumme.
+[x] Komitee entschluesselt nur die homomorph aggregierte Gesamtsumme.
 
-[ ] Komitee veroeffentlicht:
+[x] Komitee veroeffentlicht:
     - Ergebnis
     - Partial Decryptions
     - kryptografische Beweise, dass die Partial Decryptions korrekt sind.
 
-[ ] Jeder Node kann pruefen:
+[x] Ersten Single-Key-Prototyp fuer Decryption Proofs bauen:
+    - spaeter durch Threshold-Prototyp erweitert.
+
+[x] Jeder Node kann pruefen:
     - Partial Decryptions sind gueltig
     - Ergebnis passt zur verschluesselten Gesamtsumme.
 
@@ -145,15 +154,35 @@ Phase 6 - Oeffentliche Verifikation
 Phase 7 - Verteilte Nodes statt lokaler Demo-Chain
 -------------------------------------------------
 
-[ ] Entscheiden, ob die Verteilung selbst gebaut wird oder ob eine bestehende
+[x] Entscheiden, ob die Verteilung selbst gebaut wird oder ob eine bestehende
     Blockchain/Smart-Contract-Plattform genutzt wird.
 
-[ ] Falls eigene Nodes:
+[x] Falls eigene Nodes:
     - Node-Identitaeten verwalten
     - Peer Discovery planen
     - Konsensmechanismus definieren
     - Konflikte/Forks behandeln
     - Persistente Speicherung einbauen.
+
+[x] Ersten v2 Chain-Core neben der alten Demo bauen:
+    - Proof-of-Authority mit Ed25519-Validator-Signaturen
+    - Mempool fuer gueltige Transaktionen
+    - JSON-Persistenz pro Node ueber `DATA_DIR`
+    - Peer-Liste und einfache Sync-Regel: laengere gueltige Chain gewinnt
+    - `/api/v2` Endpunkte fuer Chain, Blocks, Mempool, Peers, Sync und Verify.
+
+[x] Verschluesselte Petlib-Ballots als Chain-Transaktionen speichern:
+    - `create_election`
+    - `register_voter`
+    - `cast_encrypted_vote`
+    - `finalize_election`
+    - `publish_tally_result`
+
+[x] Oeffentliche Verifikation fuer v2 anbinden:
+    - Nullifier-Eindeutigkeit
+    - verschluesselte Ballots aggregierbar
+    - published encrypted tally passt zu den Ballots
+    - Threshold-Decryption-Proofs verifizieren ohne private Shares.
 
 [ ] Falls Smart Contract:
     - VotingContract.sol ueberarbeiten

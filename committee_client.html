@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V2 Committee Client</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            background: #f7f7fb;
+            color: #172033;
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            line-height: 1.45;
+        }
+        header {
+            background: #4c1d95;
+            color: #faf5ff;
+            padding: 24px 32px;
+        }
+        h1 { margin: 0 0 8px; font-size: 28px; letter-spacing: 0; }
+        h2 { margin: 0 0 14px; font-size: 18px; letter-spacing: 0; }
+        h3 { margin: 16px 0 8px; font-size: 15px; letter-spacing: 0; }
+        .subtitle { margin: 0; color: #ddd6fe; max-width: 980px; }
+        main { padding: 24px; }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 16px;
+        }
+        .panel {
+            background: #ffffff;
+            border: 1px solid #d7dee9;
+            border-radius: 8px;
+            padding: 16px;
+            min-width: 0;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+        }
+        .span-4 { grid-column: span 4; }
+        .span-5 { grid-column: span 5; }
+        .span-7 { grid-column: span 7; }
+        .span-8 { grid-column: span 8; }
+        .span-12 { grid-column: span 12; }
+        label {
+            display: block;
+            margin: 10px 0 6px;
+            color: #475569;
+            font-size: 13px;
+            font-weight: 800;
+        }
+        input {
+            width: 100%;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            padding: 9px 10px;
+            background: #ffffff;
+            color: #172033;
+            font: inherit;
+            min-height: 38px;
+        }
+        button {
+            border: 1px solid #7c3aed;
+            border-radius: 6px;
+            padding: 9px 12px;
+            background: #7c3aed;
+            color: #ffffff;
+            font-weight: 800;
+            cursor: pointer;
+            min-height: 38px;
+        }
+        button.secondary { background: #ffffff; color: #6d28d9; }
+        .button-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+        .list {
+            display: grid;
+            gap: 8px;
+            max-height: 430px;
+            overflow: auto;
+        }
+        .item {
+            border: 1px solid #e2e8f0;
+            border-radius: 7px;
+            padding: 10px;
+            background: #fbfdff;
+        }
+        .item.active {
+            border-color: #7c3aed;
+            background: #f5f3ff;
+        }
+        .feedback {
+            border: 1px solid #d7dee9;
+            border-radius: 7px;
+            padding: 10px;
+            margin-top: 12px;
+            background: #f8fafc;
+            min-height: 42px;
+        }
+        .feedback.pending { border-color: #7c3aed; background: #f5f3ff; }
+        .feedback.success { border-color: #16a34a; background: #f0fdf4; }
+        .feedback.error { border-color: #dc2626; background: #fef2f2; }
+        .ok { color: #15803d; font-weight: 800; }
+        .bad { color: #b91c1c; font-weight: 800; }
+        .muted { color: #64748b; }
+        .mono, pre {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 12px;
+            overflow-wrap: anywhere;
+        }
+        pre {
+            margin: 0;
+            background: #0f172a;
+            color: #e2e8f0;
+            border-radius: 7px;
+            padding: 12px;
+            min-height: 220px;
+            max-height: 560px;
+            overflow: auto;
+            white-space: pre-wrap;
+        }
+        .member-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(82px, 1fr));
+            gap: 8px;
+        }
+        .member {
+            display: grid;
+            place-items: center;
+            border: 1px solid #d7dee9;
+            border-radius: 7px;
+            padding: 10px;
+            cursor: pointer;
+            background: #ffffff;
+            font-weight: 900;
+        }
+        .member.selected {
+            border-color: #7c3aed;
+            background: #f5f3ff;
+            color: #4c1d95;
+        }
+        @media (max-width: 940px) {
+            .span-4, .span-5, .span-7, .span-8, .span-12 { grid-column: span 12; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>V2 Committee Client</h1>
+        <p class="subtitle">Getrennte Auszaehlung: Das Committee sieht encrypted Ballots, waehlt Member-Shares aus, prueft Threshold und publisht Ergebnis plus Decryption-Proofs auf die Chain.</p>
+    </header>
+
+    <main>
+        <section class="grid">
+            <div class="panel span-12">
+                <h2>Verbindung</h2>
+                <label for="apiUrl">Node API URL</label>
+                <input id="apiUrl" value="http://127.0.0.1:5001">
+                <div class="button-row">
+                    <button onclick="loadElections()">Wahlen laden</button>
+                    <button class="secondary" onclick="openDashboard()">Node Dashboard oeffnen</button>
+                </div>
+                <div id="connectionFeedback" class="feedback muted">Noch keine Aktion ausgefuehrt.</div>
+            </div>
+
+            <div class="panel span-4">
+                <h2>1. Wahl auswaehlen</h2>
+                <div id="electionList" class="list"></div>
+            </div>
+
+            <div class="panel span-4">
+                <h2>2. Committee Members</h2>
+                <div id="memberGrid" class="member-grid"></div>
+                <label for="memberIds">Ausgewaehlte IDs</label>
+                <input id="memberIds" value="1,2,3" oninput="syncMembersFromInput()">
+                <div class="button-row">
+                    <button class="secondary" onclick="previewCommittee()">Threshold pruefen</button>
+                    <button onclick="publishTally()">Tally publishen</button>
+                </div>
+                <label>
+                    <input id="mineDirectly" type="checkbox" style="width: auto; min-height: auto;" checked>
+                    Direkt Block minen
+                </label>
+                <div id="committeeFeedback" class="feedback muted">Bereit fuer Threshold-Pruefung.</div>
+            </div>
+
+            <div class="panel span-4">
+                <h2>3. Status</h2>
+                <div id="statusPanel" class="list"></div>
+            </div>
+
+            <div class="panel span-5">
+                <h2>Preview / Ergebnis</h2>
+                <div id="previewPanel" class="list"></div>
+            </div>
+
+            <div class="panel span-7">
+                <h2>Raw JSON</h2>
+                <pre id="rawJson">{}</pre>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        let selectedElection = null;
+        let selectedMembers = new Set([1, 2, 3]);
+
+        document.addEventListener('DOMContentLoaded', () => {
+            renderMembers();
+            renderStatus();
+            loadElections();
+        });
+
+        function apiUrl() {
+            return document.getElementById('apiUrl').value.replace(/\/$/, '');
+        }
+
+        function escapeHtml(value) {
+            return String(value)
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#039;");
+        }
+
+        function showRaw(value) {
+            document.getElementById('rawJson').textContent = JSON.stringify(value, null, 2);
+        }
+
+        function setFeedback(id, state, text) {
+            const element = document.getElementById(id);
+            element.className = `feedback ${state}`;
+            element.textContent = text;
+        }
+
+        async function requestJson(path, options = {}) {
+            const response = await fetch(`${apiUrl()}${path}`, options);
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data.detail || data.error || `HTTP ${response.status}`);
+            }
+            return data;
+        }
+
+        async function loadElections() {
+            setFeedback('connectionFeedback', 'pending', 'Lade committed Wahlen von der Node...');
+            try {
+                const data = await requestJson('/api/v2/elections');
+                const list = document.getElementById('electionList');
+                if (!data.elections.length) {
+                    list.innerHTML = '<div class="item muted">Noch keine committed v2-Wahl gefunden</div>';
+                    setFeedback('connectionFeedback', 'success', 'Node erreicht. Es gibt noch keine committed Wahl.');
+                    return;
+                }
+                list.innerHTML = data.elections.map(election => `
+                    <div class="item ${selectedElection && selectedElection.election_id === election.election_id ? 'active' : ''}">
+                        <strong>${escapeHtml(election.title)}</strong>
+                        <div class="mono">${escapeHtml(election.election_id)}</div>
+                        <div>votes: ${election.encrypted_votes} | result: ${election.has_published_result ? 'published' : 'open'}</div>
+                        <button style="margin-top: 8px;" onclick="selectElection('${escapeHtml(election.election_id)}')">Diese Wahl</button>
+                    </div>
+                `).join('');
+                setFeedback('connectionFeedback', 'success', `${data.elections.length} Wahl(en) geladen.`);
+            } catch (error) {
+                setFeedback('connectionFeedback', 'error', `Konnte Wahlen nicht laden: ${error.message}`);
+            }
+        }
+
+        async function selectElection(electionId) {
+            setFeedback('connectionFeedback', 'pending', 'Lade Wahldetails...');
+            try {
+                selectedElection = await requestJson(`/api/v2/elections/${electionId}`);
+                const defaults = Array.from({ length: selectedElection.committee.threshold }, (_, index) => index + 1);
+                selectedMembers = new Set(defaults);
+                document.getElementById('memberIds').value = defaults.join(',');
+                renderMembers();
+                renderStatus();
+                await loadElections();
+                await previewCommittee();
+                setFeedback('connectionFeedback', 'success', `Wahl ausgewaehlt: ${selectedElection.title}`);
+            } catch (error) {
+                setFeedback('connectionFeedback', 'error', `Wahl konnte nicht geladen werden: ${error.message}`);
+            }
+        }
+
+        function renderMembers() {
+            const grid = document.getElementById('memberGrid');
+            const count = selectedElection ? selectedElection.committee.member_count : 5;
+            grid.innerHTML = Array.from({ length: count }, (_, index) => {
+                const memberId = index + 1;
+                return `
+                    <div class="member ${selectedMembers.has(memberId) ? 'selected' : ''}" onclick="toggleMember(${memberId})">
+                        Member ${memberId}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function toggleMember(memberId) {
+            if (selectedMembers.has(memberId)) {
+                selectedMembers.delete(memberId);
+            } else {
+                selectedMembers.add(memberId);
+            }
+            document.getElementById('memberIds').value = Array.from(selectedMembers).sort((a, b) => a - b).join(',');
+            renderMembers();
+            renderStatus();
+        }
+
+        function syncMembersFromInput() {
+            selectedMembers = new Set(
+                document.getElementById('memberIds').value
+                    .split(',')
+                    .map(value => Number(value.trim()))
+                    .filter(value => Number.isInteger(value) && value > 0)
+            );
+            renderMembers();
+            renderStatus();
+        }
+
+        function memberArray() {
+            return Array.from(selectedMembers).sort((a, b) => a - b);
+        }
+
+        function renderStatus(extra = '') {
+            const panel = document.getElementById('statusPanel');
+            if (!selectedElection) {
+                panel.innerHTML = '<div class="item muted">Erst Wahl auswaehlen</div>';
+                return;
+            }
+            const threshold = selectedElection.committee.threshold;
+            const selected = memberArray();
+            const thresholdMet = selected.length >= threshold;
+            panel.innerHTML = `
+                <div class="item">
+                    <strong>Threshold</strong>
+                    <div>${selected.length} von ${threshold} erforderlich</div>
+                    <div class="${thresholdMet ? 'ok' : 'bad'}">${thresholdMet ? 'erreicht' : 'nicht erreicht'}</div>
+                </div>
+                <div class="item">
+                    <strong>Encrypted Votes</strong>
+                    <div>${selectedElection.encrypted_votes}</div>
+                </div>
+                <div class="item">
+                    <strong>Published Result</strong>
+                    <div>${selectedElection.has_published_result ? 'ja' : 'nein'}</div>
+                </div>
+                ${extra}
+            `;
+        }
+
+        async function previewCommittee() {
+            if (!selectedElection) {
+                setFeedback('committeeFeedback', 'error', 'Bitte zuerst eine Wahl auswaehlen.');
+                return;
+            }
+            setFeedback('committeeFeedback', 'pending', 'Pruefe lokale Committee-Shares und Threshold...');
+            try {
+                const preview = await requestJson('/api/v2/demo/committee/preview', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        election_id: selectedElection.election_id,
+                        participating_member_ids: memberArray(),
+                    }),
+                });
+                showRaw(preview);
+                renderStatus(`
+                    <div class="item">
+                        <strong>Lokale Committee-Datei</strong>
+                        <div class="mono">${escapeHtml(preview.private_committee_state_path)}</div>
+                    </div>
+                `);
+                document.getElementById('previewPanel').innerHTML = `
+                    <div class="item">
+                        <strong>Threshold ${preview.threshold_met ? 'erreicht' : 'nicht erreicht'}</strong>
+                        <div>selected: ${preview.selected_member_ids.join(', ') || '-'}</div>
+                        <div>required: ${preview.committee_threshold}</div>
+                    </div>
+                    <div class="item">
+                        <strong>Encrypted Ballots</strong>
+                        <div>${preview.encrypted_ballot_count}</div>
+                    </div>
+                    <div class="item">
+                        <strong>Encrypted Tally</strong>
+                        <div>${preview.encrypted_tally ? 'berechenbar' : 'noch keine Stimmen'}</div>
+                    </div>
+                `;
+                setFeedback('committeeFeedback', preview.threshold_met ? 'success' : 'error', preview.threshold_met ? 'Threshold erreicht. Tally kann veroeffentlicht werden.' : 'Threshold nicht erreicht. Waehle mehr Committee Members.');
+            } catch (error) {
+                setFeedback('committeeFeedback', 'error', `Preview fehlgeschlagen: ${error.message}`);
+            }
+        }
+
+        async function publishTally() {
+            if (!selectedElection) {
+                setFeedback('committeeFeedback', 'error', 'Bitte zuerst eine Wahl auswaehlen.');
+                return;
+            }
+            setFeedback('committeeFeedback', 'pending', 'Berechne encrypted tally, Partial Decryptions und Proofs...');
+            try {
+                const result = await requestJson('/api/v2/demo/committee/publish-tally', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        election_id: selectedElection.election_id,
+                        participating_member_ids: memberArray(),
+                        mine: document.getElementById('mineDirectly').checked,
+                    }),
+                });
+                showRaw(result);
+                document.getElementById('previewPanel').innerHTML = `
+                    <div class="item">
+                        <strong>Plaintext Tally</strong>
+                        <div class="mono">[${result.plaintext_tally.join(', ')}]</div>
+                    </div>
+                    <div class="item">
+                        <strong>Published Transaction</strong>
+                        <div class="mono">${escapeHtml(result.transaction.tx_id)}</div>
+                    </div>
+                    <div class="item">
+                        <strong>Block</strong>
+                        <div>${result.block ? `committed in #${result.block.index}` : 'liegt im Mempool'}</div>
+                    </div>
+                `;
+                selectedElection = await requestJson(`/api/v2/elections/${selectedElection.election_id}`);
+                renderStatus();
+                setFeedback('committeeFeedback', result.block ? 'success' : 'success', result.block ? 'Tally wurde berechnet, bewiesen und in einen Block geschrieben.' : 'Tally wurde berechnet und liegt als publish_tally_result im Mempool.');
+            } catch (error) {
+                setFeedback('committeeFeedback', 'error', `Tally konnte nicht published werden: ${error.message}`);
+            }
+        }
+
+        function openDashboard() {
+            window.open(`${apiUrl()}/dashboard`, '_blank');
+        }
+    </script>
+</body>
+</html>

@@ -307,7 +307,7 @@ def _lcm(a: int, b: int) -> int:
 if __name__ == "__main__":
     demo = demo_candidate_tally(
         candidate_names=["Alice", "Bob", "Charlie", "Diana"],
-        selected_candidate_indices=[0, 1, 1, 3, 2, 1, 0],
+        selected_candidate_indices=[0, 1, 1, 3, 2, 1, 0,],
     )
     print("Encrypted tally verified:", demo["encrypted_tally_verified"])
     print("Plaintext tally:", demo["plaintext_tally"])

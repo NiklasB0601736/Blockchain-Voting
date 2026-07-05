@@ -1,0 +1,176 @@
+PRAESENTATIONSABLAUF: V2 VOTING-ON-BLOCKCHAIN-DEMO
+====================================================
+
+Ziel der Demo
+-------------
+Zeigen, dass der Prototyp eine eigene lokale Python-Blockchain mit mehreren
+Nodes, Mempool, signierten Bloeken, verschluesselten Stimmen, Nullifier-Schutz
+und oeffentlich pruefbarer Threshold-Auszaehlung besitzt.
+
+Wichtige Grenze klar sagen:
+Das ist ein Lern-/Demo-Prototyp. Semaphore und echte Ballot-ZK-Proofs sind
+sichtbare Platzhalter. Private Committee-Shares bleiben lokal und werden nicht
+auf die Chain geschrieben.
+
+
+1. Frisches Demo-Netzwerk starten
+---------------------------------
+Terminal:
+
+    source .venv/bin/activate
+    python3 run_v2_demo_network.py --reset
+
+Erklaeren:
+- node1 ist der Proof-of-Authority-Validator und darf Bloeke minen.
+- node2 und node3 sind getrennte Observer-Nodes mit eigenen Data-Dirs.
+- Alle Nodes kennen sich als Peers.
+- Der Reset entfernt nur den lokalen Demo-State unter .node-data/v2-demo-network.
+
+
+2. Dashboard oeffnen
+--------------------
+Browser:
+
+    http://127.0.0.1:5001/dashboard
+
+Zeigen:
+- Node Status: node1, Validator yes, Chain-Length, Mempool.
+- Multi-Node Monitor: node1/node2/node3 koennen verglichen werden.
+- Aktueller Ablauf: Client -> Transaction -> Mempool -> Block -> Sync -> Verify.
+
+
+3. Wahl erstellen
+-----------------
+Im Dashboard:
+- Wahltitel setzen, z.B. "Demo Election".
+- Kandidaten eintragen, z.B. Alice, Bob, Charlie.
+- Committee Members 5, Threshold 3.
+- "Direkt Block minen" aktiviert lassen.
+- Button "Wahl als v2-Transaktion erstellen" klicken.
+
+Zeigen:
+- Kandidaten haben sichtbare Indizes #0, #1, #2.
+- Die create_election-Transaktion ist in einem Block committed.
+- Private Demo-Shares liegen lokal, nicht auf der Chain.
+- In den Wahldetails gibt es noch keine Klarstimmen.
+
+
+4. Voter Client getrennt zeigen
+-------------------------------
+Browser:
+
+    http://127.0.0.1:5001/voter
+
+Im Voter Client:
+- API URL auf http://127.0.0.1:5001 lassen.
+- Wahl laden und auswaehlen.
+- Voter Secret eingeben, z.B. "alice-demo-secret".
+- Kandidat auswaehlen.
+- "Registrieren" klicken.
+- Danach "Verschluesselt waehlen" klicken.
+
+Zeigen:
+- Registrierung und Vote sind Voter-Aktionen, nicht Node-Admin-Aktionen.
+- Die UI zeigt One-Hot-Vorschau nur lokal als Erklaerhilfe.
+- Die Chain bekommt encrypted_ballot und nullifier_hash, keine Klarstimme.
+- Transaction Status zeigt zuerst Mempool oder nach Mining committed block.
+
+
+5. Mempool und Mining sichtbar machen
+-------------------------------------
+Variante fuer besonders klare Demo:
+- Im Voter Client "Direkt Block minen" deaktivieren.
+- Registrierung oder Vote absenden.
+- Im Dashboard Mempool ansehen.
+- Danach "Mine" klicken.
+- Wieder im Voter Client Transaction Status laden.
+
+Zeigen:
+- Erst liegt die Transaktion im Mempool.
+- Nach Mining ist sie in einem signierten Block.
+- Der Latest Block zeigt Hash, Previous Hash und Validator.
+
+
+6. Double Voting zeigen
+-----------------------
+Im Voter Client:
+- Mit demselben Voter Secret nochmal denselben oder anderen Kandidaten waehlen.
+
+Erwartung:
+- Die Node lehnt die zweite Vote-Transaktion ab.
+
+Erklaeren:
+- Der gleiche Voter Secret erzeugt denselben nullifier_hash.
+- Der Node prueft committed Chain plus Mempool und erkennt Double Voting.
+
+
+7. Multi-Node Sync zeigen
+-------------------------
+Im Dashboard node1:
+- Multi-Node Monitor aktualisieren.
+- Falls node2/node3 noch nicht denselben Latest Hash haben:
+  - Dashboard von node2 oeffnen: http://127.0.0.1:5002/dashboard
+  - Dort "Sync" klicken.
+  - Dasselbe optional fuer node3.
+
+Zeigen:
+- Nach Sync haben node1 und node2 dieselbe Chain-Length.
+- Beide zeigen denselben Latest Block Hash.
+- Observer akzeptieren nur valide Chains mit gueltigen Validator-Signaturen.
+
+
+8. Wahl finalisieren
+--------------------
+Im Dashboard node1:
+- Wahl auswaehlen.
+- "Finalize example" klicken.
+- "Submit" klicken.
+- "Mine" klicken.
+
+Erklaeren:
+- Erst nach Finalisierung kann die Committee-Auszaehlung publiziert werden.
+- In einer echten Wahl waere das Ende zeit-/regelgesteuert.
+
+
+9. Committee Client getrennt zeigen
+-----------------------------------
+Browser:
+
+    http://127.0.0.1:5001/committee
+
+Im Committee Client:
+- Wahl laden und auswaehlen.
+- Erst nur 2 Member auswaehlen und Preview klicken.
+- Danach 3 Member auswaehlen, z.B. 1, 2, 3.
+- Preview klicken.
+- "Tally publishen" klicken.
+
+Zeigen:
+- Bei 2 von 5 wird nicht entschluesselt, weil Threshold 3 ist.
+- Bei 3 von 5 wird encrypted tally berechnet.
+- Das Committee publisht plaintext tally plus Partial Decryptions und Proofs.
+- Private Shares werden nicht auf die Chain geschrieben.
+
+
+10. Public Verify zeigen
+------------------------
+Zurueck ins Dashboard:
+- Wahl auswaehlen.
+- "Verify" klicken.
+
+Zeigen:
+- Chain komplett gueltig.
+- Nullifier eindeutig.
+- Encrypted Ballots lesbar und aggregierbar.
+- Published encrypted Tally passt zu den Ballots.
+- Partial Decryption Proofs gueltig.
+- Plaintext Result passt zur Entschluesselung.
+- Overall valid.
+
+
+Merksatz fuer das Fazit
+-----------------------
+"Die Chain entscheidet nicht, was jemand gewaehlt hat. Sie speichert nur
+verschluesselte Ballots, Nullifier und spaeter einen beweisbaren Tally. Jeder
+Node kann die Regeln und die Auszaehlung aus den oeffentlichen Chain-Daten
+nachpruefen."

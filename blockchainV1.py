@@ -272,7 +272,7 @@ class Blockchain:
 def create_app(blockchain_instance: Optional[Blockchain] = None):
     from fastapi import Depends, FastAPI, Header, HTTPException, status
     from fastapi.middleware.cors import CORSMiddleware
-    from fastapi.responses import JSONResponse
+    from fastapi.responses import FileResponse, JSONResponse
     from pydantic import BaseModel, Field
 
     class CreateElectionRequest(BaseModel):
@@ -317,6 +317,40 @@ def create_app(blockchain_instance: Optional[Blockchain] = None):
     def require_admin_key(x_admin_key: Optional[str] = Header(default=None, alias="X-Admin-Key")):
         if x_admin_key != admin_key:
             api_error("Unauthorized", status.HTTP_401_UNAUTHORIZED)
+
+    @app.get("/")
+    def root():
+        return {
+            "message": "Blockchain Voting Node laeuft",
+            "api_docs": "/docs",
+            "v1_health": "/api/health",
+            "v2_dashboard": "/dashboard",
+            "v2_voter_client": "/voter",
+            "v2_committee_client": "/committee",
+            "v2_node_info": "/api/v2/node/info",
+            "v2_chain": "/api/v2/chain",
+        }
+
+    @app.get("/dashboard")
+    def dashboard():
+        dashboard_path = os.path.join(os.path.dirname(__file__), "frontend_v2.html")
+        if not os.path.exists(dashboard_path):
+            api_error("frontend_v2.html nicht gefunden", status.HTTP_404_NOT_FOUND)
+        return FileResponse(dashboard_path)
+
+    @app.get("/voter")
+    def voter_client():
+        voter_path = os.path.join(os.path.dirname(__file__), "voter_client.html")
+        if not os.path.exists(voter_path):
+            api_error("voter_client.html nicht gefunden", status.HTTP_404_NOT_FOUND)
+        return FileResponse(voter_path)
+
+    @app.get("/committee")
+    def committee_client():
+        committee_path = os.path.join(os.path.dirname(__file__), "committee_client.html")
+        if not os.path.exists(committee_path):
+            api_error("committee_client.html nicht gefunden", status.HTTP_404_NOT_FOUND)
+        return FileResponse(committee_path)
 
     @app.get("/api/elections")
     def list_elections():
@@ -406,6 +440,14 @@ def create_app(blockchain_instance: Optional[Blockchain] = None):
             "elections_count": len(chain.elections),
             "chain_length": len(chain.chain),
         }
+
+    try:
+        from distributed_blockchain import register_v2_routes
+
+        register_v2_routes(app)
+    except ModuleNotFoundError as exc:
+        if exc.name != "cryptography":
+            raise
 
     app.state.blockchain = chain
     return app

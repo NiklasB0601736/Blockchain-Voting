@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V2 Voter Client</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            background: #f6f8fc;
+            color: #172033;
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            line-height: 1.45;
+        }
+        header {
+            background: #164e63;
+            color: #f8fafc;
+            padding: 24px 32px;
+        }
+        h1 { margin: 0 0 8px; font-size: 28px; letter-spacing: 0; }
+        h2 { margin: 0 0 14px; font-size: 18px; letter-spacing: 0; }
+        h3 { margin: 16px 0 8px; font-size: 15px; letter-spacing: 0; }
+        .subtitle { margin: 0; color: #cffafe; max-width: 980px; }
+        main { padding: 24px; }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 16px;
+        }
+        .panel {
+            background: #ffffff;
+            border: 1px solid #d7dee9;
+            border-radius: 8px;
+            padding: 16px;
+            min-width: 0;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+        }
+        .span-4 { grid-column: span 4; }
+        .span-5 { grid-column: span 5; }
+        .span-7 { grid-column: span 7; }
+        .span-8 { grid-column: span 8; }
+        .span-12 { grid-column: span 12; }
+        label {
+            display: block;
+            margin: 10px 0 6px;
+            color: #475569;
+            font-size: 13px;
+            font-weight: 800;
+        }
+        input, select {
+            width: 100%;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            padding: 9px 10px;
+            background: #ffffff;
+            color: #172033;
+            font: inherit;
+            min-height: 38px;
+        }
+        button {
+            border: 1px solid #0891b2;
+            border-radius: 6px;
+            padding: 9px 12px;
+            background: #0891b2;
+            color: #ffffff;
+            font-weight: 800;
+            cursor: pointer;
+            min-height: 38px;
+        }
+        button.secondary {
+            background: #ffffff;
+            color: #0e7490;
+        }
+        .button-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        .list {
+            display: grid;
+            gap: 8px;
+            max-height: 420px;
+            overflow: auto;
+        }
+        .item {
+            border: 1px solid #e2e8f0;
+            border-radius: 7px;
+            padding: 10px;
+            background: #fbfdff;
+        }
+        .item.active {
+            border-color: #0891b2;
+            background: #ecfeff;
+        }
+        .feedback {
+            border: 1px solid #d7dee9;
+            border-radius: 7px;
+            padding: 10px;
+            margin-top: 12px;
+            background: #f8fafc;
+            min-height: 42px;
+        }
+        .feedback.pending {
+            border-color: #0891b2;
+            background: #ecfeff;
+        }
+        .feedback.success {
+            border-color: #16a34a;
+            background: #f0fdf4;
+        }
+        .feedback.error {
+            border-color: #dc2626;
+            background: #fef2f2;
+        }
+        .ok { color: #15803d; font-weight: 800; }
+        .bad { color: #b91c1c; font-weight: 800; }
+        .muted { color: #64748b; }
+        .mono, pre {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 12px;
+            overflow-wrap: anywhere;
+        }
+        pre {
+            margin: 0;
+            background: #0f172a;
+            color: #e2e8f0;
+            border-radius: 7px;
+            padding: 12px;
+            min-height: 180px;
+            max-height: 520px;
+            overflow: auto;
+            white-space: pre-wrap;
+        }
+        .candidate-grid {
+            display: grid;
+            gap: 8px;
+        }
+        .candidate-card {
+            display: grid;
+            grid-template-columns: 54px 1fr;
+            gap: 10px;
+            align-items: center;
+            border: 1px solid #d7dee9;
+            border-radius: 7px;
+            padding: 10px;
+            cursor: pointer;
+            background: #ffffff;
+        }
+        .candidate-card.selected {
+            border-color: #0891b2;
+            background: #ecfeff;
+        }
+        .index {
+            display: grid;
+            place-items: center;
+            border-radius: 6px;
+            background: #cffafe;
+            color: #164e63;
+            min-height: 38px;
+            font-weight: 900;
+        }
+        @media (max-width: 940px) {
+            .span-4, .span-5, .span-7, .span-8, .span-12 { grid-column: span 12; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>V2 Voter Client</h1>
+        <p class="subtitle">Getrennte Stimmenabgabe: Waehler sieht Kandidaten und Klarauswahl lokal; die Chain erhaelt nur Nullifier, Placeholder-Proofs und encrypted_ballot.</p>
+    </header>
+
+    <main>
+        <section class="grid">
+            <div class="panel span-12">
+                <h2>Verbindung</h2>
+                <label for="apiUrl">Node API URL</label>
+                <input id="apiUrl" value="http://127.0.0.1:5001">
+                <div class="button-row">
+                    <button onclick="loadElections()">Wahlen laden</button>
+                    <button class="secondary" onclick="openDashboard()">Node Dashboard oeffnen</button>
+                </div>
+                <div id="connectionFeedback" class="feedback muted">Noch keine Aktion ausgefuehrt.</div>
+            </div>
+
+            <div class="panel span-4">
+                <h2>1. Wahl auswaehlen</h2>
+                <div id="electionList" class="list"></div>
+            </div>
+
+            <div class="panel span-4">
+                <h2>2. Kandidat auswaehlen</h2>
+                <div id="candidateList" class="candidate-grid"></div>
+            </div>
+
+            <div class="panel span-4">
+                <h2>3. Waehler-Demo-Secret</h2>
+                <label for="voterSecret">Lokales Secret/Pseudonym</label>
+                <input id="voterSecret" value="alice">
+                <label>
+                    <input id="mineDirectly" type="checkbox" style="width: auto; min-height: auto;">
+                    Direkt Block minen
+                </label>
+                <div class="button-row">
+                    <button class="secondary" onclick="registerVoter()">Registrieren</button>
+                    <button onclick="castVote()">Verschluesselt waehlen</button>
+                </div>
+                <div id="voterFeedback" class="feedback muted">Bereit fuer Registrierung oder Stimmabgabe.</div>
+            </div>
+
+            <div class="panel span-5">
+                <h2>Lokale Vorschau</h2>
+                <div id="preview" class="list"></div>
+            </div>
+
+            <div class="panel span-7">
+                <h2>Transaktionsstatus</h2>
+                <div id="txStatus" class="list" style="margin-bottom: 12px;"></div>
+                <div class="button-row">
+                    <button class="secondary" onclick="refreshLastTransactionStatus()">Status neu laden</button>
+                    <button class="secondary" onclick="mineBlockFromVoter()">Pending Block minen</button>
+                </div>
+                <div id="txFeedback" class="feedback muted">Noch keine Transaktion ausgewaehlt.</div>
+            </div>
+
+            <div class="panel span-12">
+                <h2>Letzte Antwort / Chain-Payload</h2>
+                <pre id="rawJson">{}</pre>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        let selectedElection = null;
+        let selectedCandidateIndex = null;
+        let lastTransactionId = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            renderPreview();
+            renderTransactionStatus(null);
+            loadElections();
+        });
+
+        function apiUrl() {
+            return document.getElementById('apiUrl').value.replace(/\/$/, '');
+        }
+
+        function escapeHtml(value) {
+            return String(value)
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#039;');
+        }
+
+        function showRaw(value) {
+            document.getElementById('rawJson').textContent = JSON.stringify(value, null, 2);
+        }
+
+        function setFeedback(id, state, text) {
+            const element = document.getElementById(id);
+            element.className = `feedback ${state}`;
+            element.textContent = text;
+        }
+
+        function shortHash(value) {
+            if (!value) return '-';
+            return String(value).slice(0, 14) + '...';
+        }
+
+        async function requestJson(path, options = {}) {
+            const response = await fetch(`${apiUrl()}${path}`, options);
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data.detail || data.error || `HTTP ${response.status}`);
+            }
+            return data;
+        }
+
+        async function loadElections() {
+            setFeedback('connectionFeedback', 'pending', 'Lade committed Wahlen von der Node...');
+            try {
+                const data = await requestJson('/api/v2/elections');
+                const list = document.getElementById('electionList');
+                if (!data.elections.length) {
+                    list.innerHTML = '<div class="item muted">Noch keine committed v2-Wahl gefunden</div>';
+                    setFeedback('connectionFeedback', 'success', 'Node erreicht. Es gibt noch keine committed Wahl.');
+                    return;
+                }
+                list.innerHTML = data.elections.map(election => `
+                    <div class="item ${selectedElection && selectedElection.election_id === election.election_id ? 'active' : ''}">
+                        <strong>${escapeHtml(election.title)}</strong>
+                        <div class="mono">${escapeHtml(election.election_id)}</div>
+                        <div>encrypted votes: ${election.encrypted_votes}</div>
+                        <button style="margin-top: 8px;" onclick="selectElection('${escapeHtml(election.election_id)}')">Diese Wahl</button>
+                    </div>
+                `).join('');
+                setFeedback('connectionFeedback', 'success', `${data.elections.length} Wahl(en) geladen.`);
+            } catch (error) {
+                setFeedback('connectionFeedback', 'error', `Konnte Wahlen nicht laden: ${error.message}`);
+            }
+        }
+
+        async function selectElection(electionId) {
+            setFeedback('connectionFeedback', 'pending', 'Lade Wahldetails...');
+            try {
+                selectedElection = await requestJson(`/api/v2/elections/${electionId}`);
+                selectedCandidateIndex = null;
+                renderCandidates();
+                renderPreview();
+                await loadElections();
+                setFeedback('connectionFeedback', 'success', `Wahl ausgewaehlt: ${selectedElection.title}`);
+            } catch (error) {
+                setFeedback('connectionFeedback', 'error', `Wahl konnte nicht geladen werden: ${error.message}`);
+            }
+        }
+
+        function renderCandidates() {
+            const list = document.getElementById('candidateList');
+            if (!selectedElection) {
+                list.innerHTML = '<div class="item muted">Erst Wahl auswaehlen</div>';
+                return;
+            }
+            list.innerHTML = selectedElection.options.map((candidate, index) => `
+                <div class="candidate-card ${selectedCandidateIndex === index ? 'selected' : ''}" onclick="selectCandidate(${index})">
+                    <div class="index">#${index}</div>
+                    <strong>${escapeHtml(candidate)}</strong>
+                </div>
+            `).join('');
+        }
+
+        function selectCandidate(index) {
+            selectedCandidateIndex = index;
+            renderCandidates();
+            renderPreview();
+        }
+
+        function localOneHot() {
+            if (!selectedElection || selectedCandidateIndex === null) {
+                return [];
+            }
+            return selectedElection.options.map((_, index) => index === selectedCandidateIndex ? 1 : 0);
+        }
+
+        function renderPreview(extra = null) {
+            const secret = document.getElementById('voterSecret').value || '-';
+            const candidate = selectedElection && selectedCandidateIndex !== null
+                ? selectedElection.options[selectedCandidateIndex]
+                : 'noch nicht gewaehlt';
+            const oneHot = localOneHot();
+            document.getElementById('preview').innerHTML = `
+                <div class="item">
+                    <strong>Klarauswahl lokal</strong>
+                    <div>${escapeHtml(candidate)}</div>
+                </div>
+                <div class="item">
+                    <strong>One-Hot lokal</strong>
+                    <div class="mono">[${oneHot.join(', ')}]</div>
+                </div>
+                <div class="item">
+                    <strong>Demo Secret bleibt lokal</strong>
+                    <div class="mono">${escapeHtml(secret)}</div>
+                </div>
+                ${extra ? `<div class="item">${extra}</div>` : ''}
+            `;
+        }
+
+        async function registerVoter() {
+            if (!selectedElection) {
+                setFeedback('voterFeedback', 'error', 'Bitte zuerst eine Wahl auswaehlen.');
+                return;
+            }
+            setFeedback('voterFeedback', 'pending', 'Registriere Demo-Waehler: commitment_hash wird erzeugt und als Transaktion gesendet...');
+            try {
+                const result = await requestJson('/api/v2/demo/register-voter', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        election_id: selectedElection.election_id,
+                        voter_secret: document.getElementById('voterSecret').value,
+                        mine: document.getElementById('mineDirectly').checked,
+                    }),
+                });
+                showRaw(result);
+                lastTransactionId = result.transaction.tx_id;
+                await refreshLastTransactionStatus();
+                renderPreview(`<strong>Registriert</strong><div class="mono">commitment: ${escapeHtml(result.commitment_hash)}</div>`);
+                await loadElections();
+                setFeedback('voterFeedback', 'success', result.block ? 'Registrierung wurde direkt in einen Block geschrieben.' : 'Registrierung liegt im Mempool und wartet auf einen Block.');
+            } catch (error) {
+                setFeedback('voterFeedback', 'error', `Registrierung fehlgeschlagen: ${error.message}`);
+            }
+        }
+
+        async function castVote() {
+            if (!selectedElection) {
+                setFeedback('voterFeedback', 'error', 'Bitte zuerst eine Wahl auswaehlen.');
+                return;
+            }
+            if (selectedCandidateIndex === null) {
+                setFeedback('voterFeedback', 'error', 'Bitte zuerst einen Kandidaten auswaehlen.');
+                return;
+            }
+            setFeedback('voterFeedback', 'pending', 'Stimme wird verschluesselt und als cast_encrypted_vote Transaktion gesendet...');
+            try {
+                const result = await requestJson('/api/v2/demo/cast-vote', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        election_id: selectedElection.election_id,
+                        voter_secret: document.getElementById('voterSecret').value,
+                        candidate_index: selectedCandidateIndex,
+                        mine: document.getElementById('mineDirectly').checked,
+                    }),
+                });
+                showRaw(result);
+                lastTransactionId = result.transaction.tx_id;
+                await refreshLastTransactionStatus();
+                renderPreview(`
+                    <strong>Vote gesendet</strong>
+                    <div>candidate: ${escapeHtml(result.candidate)}</div>
+                    <div class="mono">nullifier: ${escapeHtml(result.nullifier_hash)}</div>
+                    <div class="mono">tx: ${escapeHtml(result.transaction.tx_id)}</div>
+                `);
+                await loadElections();
+                setFeedback('voterFeedback', 'success', result.block ? 'Verschluesselte Stimme wurde direkt in einen Block geschrieben.' : 'Verschluesselte Stimme liegt im Mempool und wartet auf einen Block.');
+            } catch (error) {
+                setFeedback('voterFeedback', 'error', `Stimmabgabe fehlgeschlagen: ${error.message}`);
+            }
+        }
+
+        function openDashboard() {
+            window.open(`${apiUrl()}/dashboard`, '_blank');
+        }
+
+        async function refreshLastTransactionStatus() {
+            if (!lastTransactionId) {
+                renderTransactionStatus(null);
+                setFeedback('txFeedback', 'error', 'Es gibt noch keine letzte Transaktion.');
+                return;
+            }
+            setFeedback('txFeedback', 'pending', 'Pruefe, ob die letzte Transaktion im Mempool oder in einem Block ist...');
+            try {
+                const status = await requestJson(`/api/v2/transactions/${lastTransactionId}`);
+                renderTransactionStatus(status);
+                if (status.status === 'committed') {
+                    setFeedback('txFeedback', 'success', `Transaktion ist in Block #${status.block.index} committed.`);
+                } else if (status.status === 'mempool') {
+                    setFeedback('txFeedback', 'success', 'Transaktion liegt im Mempool. Noch kein Block.');
+                } else {
+                    setFeedback('txFeedback', 'error', 'Transaktion wurde nicht gefunden.');
+                }
+            } catch (error) {
+                setFeedback('txFeedback', 'error', `Status konnte nicht geladen werden: ${error.message}`);
+            }
+        }
+
+        function renderTransactionStatus(status) {
+            const panel = document.getElementById('txStatus');
+            if (!status) {
+                panel.innerHTML = '<div class="item muted">Noch keine Transaktion gesendet</div>';
+                return;
+            }
+            if (status.status === 'mempool') {
+                panel.innerHTML = `
+                    <div class="item">
+                        <strong>Status: <span class="bad">Mempool / noch kein Block</span></strong>
+                        <div class="mono">tx: ${escapeHtml(status.tx_id)}</div>
+                        <div>Die Stimme ist bei der Node angekommen, aber noch nicht in einem signierten Block.</div>
+                    </div>
+                `;
+                return;
+            }
+            if (status.status === 'committed') {
+                panel.innerHTML = `
+                    <div class="item">
+                        <strong>Status: <span class="ok">Committed / auf der Chain</span></strong>
+                        <div class="mono">tx: ${escapeHtml(status.tx_id)}</div>
+                        <div>Block #${status.block.index}, Validator ${escapeHtml(status.block.validator_id)}</div>
+                        <div class="mono">block: ${escapeHtml(status.block.block_hash)}</div>
+                        <div class="mono">prev: ${escapeHtml(shortHash(status.block.previous_hash))}</div>
+                    </div>
+                `;
+                return;
+            }
+            panel.innerHTML = `
+                <div class="item bad">
+                    <strong>Status: not found</strong>
+                    <div class="mono">tx: ${escapeHtml(status.tx_id)}</div>
+                </div>
+            `;
+        }
+
+        async function mineBlockFromVoter() {
+            setFeedback('txFeedback', 'pending', 'Mempool wird von der Validator-Node als Block signiert...');
+            try {
+                const result = await requestJson('/api/v2/blocks/mine', { method: 'POST' });
+                showRaw(result);
+                await refreshLastTransactionStatus();
+                await loadElections();
+                setFeedback('txFeedback', 'success', `Block #${result.block.index} wurde erstellt.`);
+            } catch (error) {
+                setFeedback('txFeedback', 'error', `Block konnte nicht erstellt werden: ${error.message}`);
+            }
+        }
+    </script>
+</body>
+</html>
