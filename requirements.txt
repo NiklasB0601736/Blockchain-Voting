@@ -1,5 +1,10 @@
-fastapi>=0.115,<1
-httpx2>=2,<3
+# Active V2 node and standalone voter-client servers (Python 3.14 compatible)
+fastapi>=0.136,<1
+uvicorn[standard]>=0.48,<1
+
+# Block signatures and threshold EC-ElGamal arithmetic
 cryptography>=49,<50
-petlib>=0.0.45
-uvicorn[standard]>=0.30,<1
+petlib>=0.0.45,<0.1
+
+# FastAPI/Starlette TestClient dependency in the current toolchain
+httpx2>=2.3,<3

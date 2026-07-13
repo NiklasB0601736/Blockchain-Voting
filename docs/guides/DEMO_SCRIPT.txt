@@ -34,7 +34,8 @@ Erklaeren:
 3. REGISTRIERUNG
 ----------------
 
-Voter unter http://127.0.0.1:5001/voter oeffnen.
+Separaten Voter unter
+http://127.0.0.1:7000/?node=http://127.0.0.1:5001 oeffnen.
 
 - Wahl laden.
 - Voter-Secret eingeben.
@@ -91,8 +92,7 @@ Grenze nennen:
 Im node1-Dashboard:
 
 - Wahl auswaehlen.
-- Finalize-Beispiel laden.
-- mit Admin Key senden.
+- "Wahl beenden" mit Admin Key ausfuehren.
 - Block minen.
 
 Zeigen:

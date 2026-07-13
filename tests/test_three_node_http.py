@@ -65,7 +65,7 @@ class ThreeNodeHttpIntegrationTest(unittest.TestCase):
                     else:
                         env.pop("NODE_PRIVATE_KEY", None)
                     processes.append(subprocess.Popen(
-                        [str(PROJECT_ROOT / ".venv/bin/python"), "-m", "voting_system.blockchain_v1"],
+                        [str(PROJECT_ROOT / ".venv/bin/python"), "-m", "voting_system.node_server"],
                         cwd=PROJECT_ROOT,
                         env=env,
                         stdout=subprocess.DEVNULL,

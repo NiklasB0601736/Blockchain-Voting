@@ -2,7 +2,7 @@
 """
 Small demo client for the distributed v2 voting chain.
 
-The node (`blockchainV1.py` + `/api/v2`) is deliberately separate from this
+The node (`voting_system.node_server` + `/api/v2`) is deliberately separate from this
 client. That mirrors the real architecture:
 
 - the node stores and validates chain data,

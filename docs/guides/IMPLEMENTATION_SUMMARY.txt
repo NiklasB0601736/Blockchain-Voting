@@ -12,6 +12,10 @@ kann das Ergebnis aus oeffentlichen Chain-Daten pruefen.
 AKTIVE KOMPONENTEN
 ------------------
 
+voting_system/node_server.py
+    Eindeutiger FastAPI-Startpunkt fuer die aktive V2-Node. Liefert Dashboard,
+    Committee Client, Assets und die verteilte `/api/v2`-Schnittstelle.
+
 voting_system/distributed_blockchain.py
     PoA-Chain, Mempool, Ed25519-Blocks, JSON-Persistenz, Peer-Sync,
     Wahl-State, Nullifier-Regeln und Public Verify.
@@ -31,11 +35,15 @@ web/voter_client.html
     Lokale Commitment-, Nullifier- und Ballot-Erzeugung. Secret und
     Kandidat werden nicht an die Node gesendet.
 
+voting_system/voter_client_server.py
+    Separater, zustandsloser Server fuer Voter-HTML und Browser-Kryptografie.
+    Er besitzt keine Chain-, Admin-, Validator- oder Committee-Funktionen.
+
 web/committee_client.html
     Laedt einzelne private Share-Dateien und publiziert erst ab Threshold.
 
 scripts/run_v2_demo_network.py
-    Startet einen Validator und zwei Observer als getrennte Prozesse.
+    Startet einen Validator, zwei Observer und den separaten Voter-Server.
 
 
 ROLLEN UND KEYS

@@ -1,9 +1,9 @@
 """
 Petlib-backed EC-ElGamal tally prototype for verifiable encrypted voting.
 
-This module keeps the same voting flow as crypto_elgamal_tally.py, but replaces
-the hand-rolled prime group arithmetic with Petlib/OpenSSL elliptic-curve
-operations. It is still a prototype and is not wired into blockchainV1.py.
+This module evolved from the archived Pure-Python ElGamal learning prototype.
+It replaces hand-rolled prime-group arithmetic with Petlib/OpenSSL
+elliptic-curve operations and is integrated into the active V2 chain.
 
 High-level model:
 - A candidate vote is represented as a one-hot vector, e.g. Bob in a

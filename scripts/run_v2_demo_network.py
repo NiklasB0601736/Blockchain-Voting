@@ -8,6 +8,7 @@ so the demo remains transparent:
 - node1 runs on port 5001 and owns the PoA validator private key.
 - node2 runs on port 5002 as an observer node.
 - node3 runs on port 5003 as another observer node.
+- the independent voter client runs on port 7000.
 - every node gets its own JSON data directory.
 - every node knows the other two nodes as peers.
 
@@ -136,7 +137,29 @@ def start_node(config: dict, node_config: dict, data_root: Path) -> subprocess.P
     print(f"  DATA_DIR={env['DATA_DIR']}")
     print(f"  PEERS={env['PEERS']}")
     print(f"  VALIDATOR={'yes' if node_config['validator'] else 'no'}")
-    return subprocess.Popen([sys.executable, "-m", "voting_system.blockchain_v1"], cwd=PROJECT_ROOT, env=env)
+    return subprocess.Popen([sys.executable, "-m", "voting_system.node_server"], cwd=PROJECT_ROOT, env=env)
+
+
+def start_voter_client(port: int) -> subprocess.Popen:
+    """
+    Start the voter UI as a process that owns no blockchain or validator state.
+
+    The browser receives the Node API URL as a visible query parameter when the
+    demo links are printed. This server only delivers the audited client files.
+    """
+    env = os.environ.copy()
+    existing_pythonpath = env.get("PYTHONPATH", "")
+    env.update({
+        "VOTER_CLIENT_PORT": str(port),
+        "PYTHONUNBUFFERED": "1",
+        "PYTHONPATH": str(PROJECT_ROOT) if not existing_pythonpath else f"{PROJECT_ROOT}{os.pathsep}{existing_pythonpath}",
+    })
+    print(f"\nStarting standalone voter client on http://127.0.0.1:{port}")
+    return subprocess.Popen(
+        [sys.executable, "-m", "voting_system.voter_client_server"],
+        cwd=PROJECT_ROOT,
+        env=env,
+    )
 
 
 def terminate_processes(processes: list[subprocess.Popen]) -> None:
@@ -155,6 +178,7 @@ def main() -> int:
     """Parse CLI flags, prepare config, start all nodes, and keep them alive."""
     parser = argparse.ArgumentParser(description="Start three local v2 demo blockchain nodes.")
     parser.add_argument("--base-port", type=int, default=5001, help="Port for node1; node2/3 use the next ports.")
+    parser.add_argument("--voter-port", type=int, default=7000, help="Port for the separate voter client server.")
     parser.add_argument("--data-root", type=Path, default=DEFAULT_DATA_ROOT, help="Directory for generated node state.")
     parser.add_argument("--reset", action="store_true", help="Delete the generated demo-network state before starting.")
     args = parser.parse_args()
@@ -180,7 +204,7 @@ def main() -> int:
     print("\nV2 demo network")
     print("=" * 60)
     print(f"Dashboard node1: {urls['node1']}/dashboard")
-    print(f"Voter client:     {urls['node1']}/voter")
+    print(f"Voter client:     http://127.0.0.1:{args.voter_port}/?node={urls['node1']}")
     print(f"Committee client: {urls['node1']}/committee")
     print(f"Observer node2:   {urls['node2']}/dashboard")
     print(f"Observer node3:   {urls['node3']}/dashboard")
@@ -200,12 +224,14 @@ def main() -> int:
         for node in config["nodes"]:
             processes.append(start_node(config, node, data_root))
             time.sleep(0.5)
+        processes.append(start_voter_client(args.voter_port))
+        time.sleep(0.5)
 
-        print("\nAll nodes started. Press Ctrl+C to stop the demo network.")
+        print("\nAll nodes and the voter client started. Press Ctrl+C to stop the demo network.")
         while True:
             stopped = [process for process in processes if process.poll() is not None]
             if stopped:
-                print("One node exited unexpectedly. Stopping the remaining nodes.", file=sys.stderr)
+                print("One demo process exited unexpectedly. Stopping the remaining processes.", file=sys.stderr)
                 terminate_processes(processes)
                 return 1
             time.sleep(1)

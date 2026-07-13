@@ -27,7 +27,7 @@
   <text class="txt" x="48" y="80">Secret und Klarwahl bleiben im Browser. Auf der Chain landen encrypted_ballot, nullifier_hash und spaeter Tally-Proofs.</text>
 
   <rect class="client" x="55" y="125" width="245" height="130" rx="8"/>
-  <text class="head" x="80" y="158">1. Voter Client</text>
+  <text class="head" x="80" y="158">1. Separater Voter Client</text>
   <text class="txt" x="80" y="184">Kandidat mit Index waehlen</text>
   <text class="mono" x="80" y="210">one_hot = [0,1,0]</text>
   <text class="small" x="80" y="232">nur lokale Vorschau</text>
@@ -80,7 +80,7 @@
 
   <rect class="open" x="55" y="710" width="1135" height="70" rx="8"/>
   <text class="head" x="82" y="740">Ausblick fuer echte Nutzung</text>
-  <text class="txt" x="82" y="764">Semaphore/Membership-Proofs, echte Ballot-ZK-Proofs, sichere Share-Verteilung, Metadaten-Schutz, Audits, rechtliche Zulassung.</text>
+  <text class="txt" x="82" y="764">Semaphore/Membership-Proofs, Ballot-ZK-Proofs, DKG, Metadaten-Schutz, Audits und rechtliche Zulassung.</text>
 
   <path class="arrow" d="M300 190 L355 190"/>
   <path class="arrow" d="M640 190 L705 190"/>

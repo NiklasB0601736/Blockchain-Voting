@@ -3,15 +3,15 @@
   "version": "1.0.0",
   "type": "module",
   "description": "Demo-Prototyp fuer verteiltes Voting mit eigener Python-Chain und verschluesselten Stimmen",
-  "main": "blockchainV1.py",
+  "main": "voting_system/node_server.py",
   "scripts": {
-    "start": ".venv/bin/python blockchainV1.py",
-    "start:module": ".venv/bin/python -m voting_system.blockchain_v1",
+    "start": ".venv/bin/python -m voting_system.node_server",
+    "start:module": ".venv/bin/python -m voting_system.node_server",
+    "start:voter": ".venv/bin/python -m voting_system.voter_client_server",
     "demo:network": ".venv/bin/python scripts/run_v2_demo_network.py --reset",
     "test:python": ".venv/bin/python -m unittest discover -s tests",
     "build:web-crypto": "esbuild web/src/voting_crypto.js --bundle --format=iife --global-name=VotingCrypto --outfile=web/assets/voting_crypto.bundle.js",
     "test:web-crypto": "node --test tests_js/*.test.js",
-    "frontend": "open web/frontend.html",
     "dashboard": "open web/frontend_v2.html"
   },
   "keywords": [

@@ -26,7 +26,7 @@
 
   <rect class="band done" x="60" y="115" width="1060" height="125" rx="8"/>
   <text class="head" x="90" y="153">Level 4 - Bedienung und Rollen</text>
-  <text class="txt" x="90" y="181">Node Dashboard, Voter Client, Committee Client, Node Launcher, Demo-Netzwerk-Skript</text>
+  <text class="txt" x="90" y="181">Node: Dashboard + Committee | separater Server: Voter Client | Node Launcher + Demo-Netzwerk</text>
   <rect class="done" x="720" y="142" width="350" height="70" rx="6"/>
   <text class="tag" x="742" y="166">IMPLEMENTIERT</text>
   <text class="small" x="742" y="187">Wahl erstellen, verschluesselt waehlen,</text>
@@ -56,7 +56,7 @@
   <text class="small" x="90" y="678">Lokale Node 1/2/3 Demo mit gleichem Latest-Hash nach Sync</text>
   <rect class="band open" x="610" y="590" width="510" height="105" rx="8"/>
   <text class="head" x="640" y="628">Produktionsluecken</text>
-  <text class="txt" x="640" y="656">Semaphore, Ballot-ZK-Proofs, Metadaten-Schutz, Audits, Rechtsrahmen</text>
+  <text class="txt" x="640" y="656">Semaphore, Ballot-ZK-Proofs, DKG, Metadaten-Schutz, Audits, Rechtsrahmen</text>
   <text class="small" x="640" y="678">Nicht noetig fuer die Demo, aber noetig fuer echte Nutzung</text>
 
   <path class="arrow" d="M590 250 L590 270"/>

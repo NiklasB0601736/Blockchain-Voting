@@ -36,16 +36,11 @@ Warum nicht sofort?
 Geplanter Minimal-Umbau
 -----------------------
 
-[ ] `blockchainV1.py` soll einen konfigurierbaren Host bekommen.
+[x] `voting_system/node_server.py` hat einen konfigurierbaren Host.
 
-    Aktuell:
+    Der CLI-Start kann bereits per `HOST=0.0.0.0` ins LAN gebunden werden:
 
-        uvicorn.run("voting_system.blockchain_v1:app", host="127.0.0.1", port=port, reload=reload)
-
-    Ziel:
-
-        host = os.environ.get("HOST", "127.0.0.1")
-        uvicorn.run("voting_system.blockchain_v1:app", host=host, port=port, reload=reload)
+        HOST=0.0.0.0 .venv/bin/python -m voting_system.node_server
 
 [ ] `scripts/v2_node_launcher.py` soll ein Feld fuer `HOST` bekommen.
 

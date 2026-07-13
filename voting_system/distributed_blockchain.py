@@ -1,10 +1,9 @@
 """
 Distributed Python blockchain prototype for encrypted voting.
 
-This module is the v2 chain core. It intentionally lives next to the existing
-`blockchainV1.py` demo instead of replacing it. The old file is still useful as
-the small local learning version; this module models the pieces that make the
-project feel like a real distributed ledger:
+This module is the active v2 chain core. The earlier local V1 learning demo is
+kept in the archive; this module models the pieces that make the project feel
+like a real distributed ledger:
 
 - transactions are the source of truth,
 - blocks are signed by Proof-of-Authority validators,
@@ -1041,8 +1040,8 @@ def register_v2_routes(app, node: Optional[DistributedVotingBlockchain] = None):
     """
     Attach the v2 distributed-chain API to a FastAPI app.
 
-    The old API in `blockchainV1.py` can continue to exist. This function only
-    adds `/api/v2/*` routes and stores the v2 node under `app.state.v2_node`.
+    This function adds `/api/v2/*` routes to the active Node Server and stores
+    the distributed node under `app.state.v2_node`.
     """
     from fastapi import Body, Header, HTTPException, status
 

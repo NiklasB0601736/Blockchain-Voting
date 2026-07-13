@@ -23,7 +23,7 @@ Im Node Controller:
 Adressen:
 
     Dashboard  http://127.0.0.1:5001/dashboard
-    Voter      http://127.0.0.1:5001/voter
+    Voter      http://127.0.0.1:7000/?node=http://127.0.0.1:5001
     Committee  http://127.0.0.1:5001/committee
     API Docs   http://127.0.0.1:5001/docs
 
@@ -41,7 +41,7 @@ WAHLABLAUF
    - "Wahl und Committee erzeugen" klicken.
    - Jeden privaten Committee-Share einzeln speichern.
 
-2. Voter:
+2. Separater Voter Client:
    - Wahl auswaehlen.
    - lokales Secret eingeben.
    - "Registrieren" klicken.
@@ -61,7 +61,7 @@ WAHLABLAUF
 
 6. Dashboard:
    - Wahl auswaehlen.
-   - Finalize-Beispiel laden und mit Admin Key senden.
+   - "Wahl beenden" mit Admin Key ausfuehren.
    - "Mine" klicken.
 
 7. Committee:

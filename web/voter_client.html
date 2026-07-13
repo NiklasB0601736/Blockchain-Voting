@@ -234,6 +234,13 @@
         let lastTransactionId = null;
 
         document.addEventListener('DOMContentLoaded', () => {
+            // A separately hosted client can receive its initial Node API in
+            // the URL, for example `/?node=http://127.0.0.1:5001`. The voter
+            // can still inspect and change the value before sending anything.
+            const configuredNode = new URLSearchParams(window.location.search).get('node');
+            if (configuredNode) {
+                document.getElementById('apiUrl').value = configuredNode;
+            }
             renderPreview();
             renderTransactionStatus(null);
             loadElections();

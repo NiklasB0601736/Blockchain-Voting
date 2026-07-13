@@ -409,7 +409,6 @@ Charlie</textarea>
                 </div>
                 <div class="button-row" style="margin-top: 12px;">
                     <button onclick="createElection()">Wahl und Committee erzeugen</button>
-                    <button class="secondary" onclick="fillCreateElectionRaw()">Als Raw JSON in Composer laden</button>
                 </div>
                 <div id="createElectionStatus" class="list" style="margin-top: 12px;"></div>
             </div>
@@ -434,6 +433,7 @@ Charlie</textarea>
                 <div class="button-row" style="margin-bottom: 10px;">
                     <button class="secondary" onclick="loadElectionData()">Load selected</button>
                     <button class="secondary" onclick="verifySelectedElection()">Verify</button>
+                    <button onclick="finalizeElection()">Wahl beenden</button>
                 </div>
                 <div id="electionDetails" class="list"></div>
             </div>
@@ -443,27 +443,7 @@ Charlie</textarea>
                 <div id="verifyPanel" class="list"></div>
             </div>
 
-            <div class="panel span-5">
-                <h2>Transaction Composer</h2>
-                <label for="txType">Type</label>
-                <select id="txType">
-                    <option value="create_election">create_election</option>
-                    <option value="register_voter">register_voter</option>
-                    <option value="cast_encrypted_vote">cast_encrypted_vote</option>
-                    <option value="finalize_election">finalize_election</option>
-                    <option value="publish_tally_result">publish_tally_result</option>
-                </select>
-                <label for="txPayload" style="margin-top: 10px;">Payload JSON</label>
-                <textarea id="txPayload">{
-  "election_id": "demo-election"
-}</textarea>
-                <div class="button-row" style="margin-top: 10px;">
-                    <button onclick="submitTransaction()">Submit</button>
-                    <button class="secondary" onclick="fillFinalizeExample()">Finalize example</button>
-                </div>
-            </div>
-
-            <div class="panel span-7">
+            <div class="panel span-12">
                 <h2>Raw JSON</h2>
                 <pre id="rawJson">{}</pre>
             </div>
@@ -855,24 +835,30 @@ Charlie</textarea>
             }
         }
 
-        async function submitTransaction() {
-            const txType = document.getElementById('txType').value;
-            setFeedback('pending', `Sende ${txType}...`);
+        async function finalizeElection() {
+            if (!selectedElectionId) {
+                setFeedback('error', 'Bitte zuerst eine Wahl auswaehlen.');
+                return;
+            }
+
+            setFeedback('pending', 'Beende Wahl...');
             try {
-                const payload = JSON.parse(document.getElementById('txPayload').value);
                 const result = await requestJson('/api/v2/transactions', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-Admin-Key': document.getElementById('adminKey').value,
                     },
-                    body: JSON.stringify({ type: txType, payload }),
+                    body: JSON.stringify({
+                        type: 'finalize_election',
+                        payload: { election_id: selectedElectionId },
+                    }),
                 });
                 showRaw(result);
                 await refreshAll();
-                setFeedback('success', `${txType} im Mempool.`);
+                setFeedback('success', 'Wahlende liegt im Mempool. Jetzt Block minen.');
             } catch (error) {
-                setFeedback('error', `Transaktion fehlgeschlagen: ${error.message}`);
+                setFeedback('error', `Wahl konnte nicht beendet werden: ${error.message}`);
             }
         }
 
@@ -949,28 +935,6 @@ Charlie</textarea>
             URL.revokeObjectURL(link.href);
         }
 
-        function fillCreateElectionRaw() {
-            const now = new Date();
-            const end = new Date(now.getTime() + Number(document.getElementById('createDuration').value) * 60 * 1000);
-            document.getElementById('txType').value = 'create_election';
-            document.getElementById('txPayload').value = JSON.stringify({
-                election_id: 'manual-election',
-                title: document.getElementById('createTitle').value,
-                options: parseCandidates(),
-                start_time: now.toISOString(),
-                end_time: end.toISOString(),
-                committee: {
-                    note: 'Raw create_election braucht eine echte Petlib committee public payload. Nutze fuer die Demo besser den Button Wahl erstellen.'
-                }
-            }, null, 2);
-        }
-
-        function fillFinalizeExample() {
-            document.getElementById('txType').value = 'finalize_election';
-            document.getElementById('txPayload').value = JSON.stringify({
-                election_id: selectedElectionId || 'demo-election',
-            }, null, 2);
-        }
     </script>
 </body>
 </html>

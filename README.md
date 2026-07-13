@@ -20,7 +20,7 @@ technischen Datenfluss und benennt die fehlenden Sicherheitsbausteine offen.
 - private Committee-Shares als einzelne lokale JSON-Dateien
 - clientseitige Partial Decryptions und Chaum-Pedersen-Proofs
 - Petlib-Verifikation des veroeffentlichten Ergebnisses auf jeder Node
-- getrennte Oberflaechen fuer Node, Voter und Committee
+- separater Voter-Server; Dashboard und Committee bleiben auf der Node
 
 Der aktuelle Nullifier ist absichtlich nur eine robuste Demo-Loesung: Seine
 Bindung an das oeffentliche Commitment verhindert frei erfundene Nullifier,
@@ -32,7 +32,8 @@ ZK-Membership-/Nullifier-Proof, zum Beispiel nach dem Semaphore-Prinzip.
 1. Das Dashboard erzeugt Committee-Keymaterial lokal im Browser.
 2. Nur Public Key und Public Shares gehen in `create_election` auf die Chain.
 3. Jeder private Member-Share wird als eigene Datei gespeichert.
-4. Der Voter-Browser bildet One-Hot, Commitment und Nullifier lokal.
+4. Der separat ausgelieferte Voter-Browser liest die Wahldaten von einer Node
+   und bildet One-Hot, Commitment und Nullifier lokal.
 5. Die Node erhaelt nur `encrypted_ballot`, Hashes und Proof-Platzhalter.
 6. Der Validator committed gueltige Mempool-Transaktionen in einen Block.
 7. Committee-Mitglieder laden mindestens den Threshold einzelner Share-Dateien.
@@ -60,13 +61,12 @@ scripts/           Node Controller, Demo-Netzwerk und CLI-Client
 tests/             Python-, HTTP-Prozess- und Interoperabilitaetstests
 tests_js/          Browser-Kryptografie-Tests
 docs/              Anleitungen und Architekturdiagramme
-archive/            nicht aktiver Ethereum-/Hardhat-Entwurf
-blockchainV1.py    kompatibler Start-Wrapper
+archive/           historische Python- und Ethereum-Prototypen
 ```
 
-Der aktive Prototyp ist die V2-Chain in
-`voting_system/distributed_blockchain.py`. Die alte V1-Lerndemo bleibt in
-`voting_system/blockchain_v1.py` erhalten.
+Der aktive Node-Einstieg ist `voting_system/node_server.py`; der Chain-Core
+liegt in `voting_system/distributed_blockchain.py`. Historische V1-, Paillier-,
+Pure-Python-ElGamal- und Ethereum-Entwuerfe liegen ausschliesslich im Archiv.
 
 ## Installation
 
@@ -97,7 +97,7 @@ Im Controller `3-Node-Demo starten` waehlen. Danach:
 
 ```text
 Dashboard: http://127.0.0.1:5001/dashboard
-Voter:     http://127.0.0.1:5001/voter
+Voter:     http://127.0.0.1:7000/?node=http://127.0.0.1:5001
 Committee: http://127.0.0.1:5001/committee
 Node 2:    http://127.0.0.1:5002/dashboard
 Node 3:    http://127.0.0.1:5003/dashboard
@@ -110,13 +110,26 @@ Alternativ direkt:
 .venv/bin/python scripts/run_v2_demo_network.py --reset
 ```
 
+Der Demo-Start erzeugt vier getrennte Prozesse: drei Blockchain-Nodes und den
+zustandslosen Voter-Server auf Port `7000`. Eine einzelne Node und der Voter
+koennen auch separat gestartet werden:
+
+```bash
+.venv/bin/python -m voting_system.node_server
+.venv/bin/python -m voting_system.voter_client_server
+```
+
+Die Node liefert bewusst keine `/voter`-Route mehr aus. Der Voter kommuniziert
+ueber die sichtbare Node API URL mit einer ausgewaehlten Node; CORS ist fuer
+diese Cross-Origin-Anfragen im Prototyp aktiviert.
+
 Eine einzelne Node:
 
 ```bash
 PORT=5001 \
 V2_ADMIN_KEY=dev_admin_key \
 V2_NODE_KEY=dev_node_key \
-.venv/bin/python blockchainV1.py
+.venv/bin/python -m voting_system.node_server
 ```
 
 ## Bedienung
@@ -156,14 +169,19 @@ Die Tests umfassen unter anderem:
 - keine echten Semaphore-/Membership-Proofs
 - kein ZK-Ballot-Proof fuer genau eine verschluesselte Auswahl
 - Demo-Registrierung ist keine reale Ausgabe von Wahlberechtigungen
+- das Dashboard erzeugt bei der Wahlerstellung kurzzeitig alle privaten
+  Committee-Shares gemeinsam im Browser des Administrators; ein Produktivsystem
+  braucht ein Distributed Key Generation Protocol (DKG), damit die Mitglieder
+  den gemeinsamen Public Key verteilt erzeugen und keine einzelne Stelle jemals
+  alle privaten Schluesselanteile besitzt
 - private Share-Dateien haben noch keinen Hardware-/Passwortschutz
 - einfacher PoA-Konsens und manuell angestossener Peer-Sync
 - keine BFT-Fork-Aufloesung, Datenbank oder parallele Transaktionssperren
 - kein Schutz gegen IP-, Timing- und Reihenfolge-Metadaten
 - keine formale Sicherheitsanalyse, Audits oder rechtliche Zulassung
 
-Der alte Ethereum-/Semaphore-Entwurf liegt nur noch als Forschungsreferenz
-unter `archive/ethereum-experiment/` und ist kein aktiver Buildpfad.
+Historische Entwuerfe liegen nur noch als Lern- und Forschungsreferenzen unter
+`archive/` und gehoeren nicht zum aktiven Startpfad.
 
 ## Grafiken
 
