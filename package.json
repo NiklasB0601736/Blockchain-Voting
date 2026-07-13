@@ -1,37 +1,32 @@
 {
   "name": "blockchain-voting-system",
   "version": "1.0.0",
-  "description": "Dezentralisiertes anonymes Wahlsystem mit Ethereum, zkSync und Semaphore",
+  "type": "module",
+  "description": "Demo-Prototyp fuer verteiltes Voting mit eigener Python-Chain und verschluesselten Stimmen",
   "main": "blockchainV1.py",
   "scripts": {
     "start": ".venv/bin/python blockchainV1.py",
-    "hardhat:compile": "hardhat compile",
-    "hardhat:test": "hardhat test",
-    "hardhat:deploy-zk": "hardhat deploy-zk",
-    "frontend": "open frontend.html"
+    "start:module": ".venv/bin/python -m voting_system.blockchain_v1",
+    "demo:network": ".venv/bin/python scripts/run_v2_demo_network.py --reset",
+    "test:python": ".venv/bin/python -m unittest discover -s tests",
+    "build:web-crypto": "esbuild web/src/voting_crypto.js --bundle --format=iife --global-name=VotingCrypto --outfile=web/assets/voting_crypto.bundle.js",
+    "test:web-crypto": "node --test tests_js/*.test.js",
+    "frontend": "open web/frontend.html",
+    "dashboard": "open web/frontend_v2.html"
   },
   "keywords": [
     "blockchain",
     "voting",
-    "ethereum",
-    "zksync",
-    "semaphore",
     "anonymous",
-    "solidity",
-    "hardhat",
-    "metamask"
+    "threshold-cryptography",
+    "elgamal"
   ],
   "author": "Your Name",
   "license": "MIT",
-  "devDependencies": {
-    "hardhat": "^2.14.0",
-    "@nomicfoundation/hardhat-toolbox": "^3.0.0",
-    "@matterlabs/hardhat-zksync-deploy": "^0.6.2",
-    "@matterlabs/hardhat-zksync-solc": "^0.4.0",
-    "@matterlabs/zksync-contracts": "^0.4.1"
-  },
   "dependencies": {
-    "ethers": "^6.0.0",
-    "@semaphore-protocol/contracts": "^3.8.0"
+    "@noble/curves": "2.0.1"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12"
   }
 }

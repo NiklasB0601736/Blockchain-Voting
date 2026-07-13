@@ -28,10 +28,12 @@ import webbrowser
 from pathlib import Path
 from tkinter import messagebox, scrolledtext, ttk
 
-from distributed_blockchain import DistributedVotingBlockchain, generate_validator_keypair
+PROJECT_DIR = Path(__file__).resolve().parents[1]
+if str(PROJECT_DIR) not in sys.path:
+    sys.path.insert(0, str(PROJECT_DIR))
 
+from voting_system.distributed_blockchain import DistributedVotingBlockchain, generate_validator_keypair
 
-PROJECT_DIR = Path(__file__).resolve().parent
 DEFAULT_ADMIN_KEY = "dev_admin_key"
 
 
@@ -50,15 +52,19 @@ class V2NodeLauncher(tk.Tk):
         self.geometry("1040x820")
         self.minsize(900, 680)
         self.process: subprocess.Popen | None = None
+        self.demo_network_process: subprocess.Popen | None = None
 
         self.node_id = tk.StringVar(value="node1")
         self.port = tk.StringVar(value="5001")
         self.data_dir = tk.StringVar(value=".node-data/node1")
+        self.demo_network_base_port = tk.StringVar(value="5001")
+        self.demo_network_reset = tk.BooleanVar(value=True)
         self.private_key = tk.StringVar(value="")
         self.public_key = tk.StringVar(value="")
         self.validators_json = tk.StringVar(value="")
         self.peers = tk.StringVar(value="")
         self.admin_key = tk.StringVar(value=DEFAULT_ADMIN_KEY)
+        self.node_api_key = tk.StringVar(value="dev_node_key")
 
         self._build_ui()
         self._generate_key_if_empty()
@@ -70,7 +76,7 @@ class V2NodeLauncher(tk.Tk):
 
         title = ttk.Label(
             root,
-            text="V2 Node starten, ohne Env-Variablen per Hand zu tippen",
+            text="V2 Node Controller",
             font=("TkDefaultFont", 18, "bold"),
         )
         title.pack(anchor=tk.W)
@@ -78,8 +84,7 @@ class V2NodeLauncher(tk.Tk):
         subtitle = ttk.Label(
             root,
             text=(
-                "Die Konfiguration bleibt sichtbar: Node-ID, Port, Keys, Validatoren, "
-                "Data-Dir und Peers werden als Felder gesetzt und dann als Env an blockchainV1.py uebergeben."
+                "Single Node konfigurieren oder lokales Demo-Netzwerk starten."
             ),
             wraplength=940,
         )
@@ -92,7 +97,8 @@ class V2NodeLauncher(tk.Tk):
         self._entry(form, "Port", self.port, 0, 1)
         self._entry(form, "Data dir", self.data_dir, 1, 0)
         self._entry(form, "Admin key", self.admin_key, 1, 1)
-        self._entry(form, "Peers, comma separated", self.peers, 2, 0, columnspan=2)
+        self._entry(form, "Node API key", self.node_api_key, 2, 0)
+        self._entry(form, "Peers, comma separated", self.peers, 2, 1)
 
         key_box = ttk.LabelFrame(root, text="Validator Key")
         key_box.pack(fill=tk.X, pady=(16, 0))
@@ -109,8 +115,7 @@ class V2NodeLauncher(tk.Tk):
         validators_help = ttk.Label(
             validators_box,
             text=(
-                "Diese Liste sagt allen Nodes, welche Validatoren Bloeke signieren duerfen. "
-                "Fuer eine lokale Demo reicht ein Eintrag fuer diese Node."
+                "Validatoren, die Bloeke signieren duerfen."
             ),
             wraplength=940,
         )
@@ -126,6 +131,42 @@ class V2NodeLauncher(tk.Tk):
         ttk.Button(actions, text="Dashboard oeffnen", command=self.open_dashboard).pack(side=tk.LEFT)
         ttk.Button(actions, text="API Docs oeffnen", command=self.open_docs).pack(side=tk.LEFT, padx=8)
         ttk.Button(actions, text="Demo-Client Befehl anzeigen", command=self.show_demo_command).pack(side=tk.LEFT)
+
+        demo_network_box = ttk.LabelFrame(root, text="Demo Network")
+        demo_network_box.pack(fill=tk.X, pady=(0, 16))
+        demo_network_help = ttk.Label(
+            demo_network_box,
+            text=(
+                "Startet node1 als Validator und node2/node3 als Observer."
+            ),
+            wraplength=940,
+        )
+        demo_network_help.pack(anchor=tk.W, padx=10, pady=(8, 4))
+
+        demo_network_controls = ttk.Frame(demo_network_box)
+        demo_network_controls.pack(fill=tk.X, padx=10, pady=(0, 10))
+        ttk.Label(demo_network_controls, text="Base Port").pack(side=tk.LEFT)
+        ttk.Entry(demo_network_controls, textvariable=self.demo_network_base_port, width=8).pack(side=tk.LEFT, padx=(6, 14))
+        ttk.Checkbutton(
+            demo_network_controls,
+            text="Demo-State vorher resetten",
+            variable=self.demo_network_reset,
+        ).pack(side=tk.LEFT, padx=(0, 14))
+        ttk.Button(
+            demo_network_controls,
+            text="3-Node-Demo starten",
+            command=self.start_demo_network,
+        ).pack(side=tk.LEFT)
+        ttk.Button(
+            demo_network_controls,
+            text="3-Node-Demo stoppen",
+            command=self.stop_demo_network,
+        ).pack(side=tk.LEFT, padx=8)
+        ttk.Button(
+            demo_network_controls,
+            text="Demo Links oeffnen",
+            command=self.open_demo_network_links,
+        ).pack(side=tk.LEFT)
 
         env_box = ttk.LabelFrame(root, text="Node Log")
         env_box.pack(fill=tk.BOTH, expand=True)
@@ -173,7 +214,7 @@ class V2NodeLauncher(tk.Tk):
 
     def start_node(self) -> None:
         """
-        Start blockchainV1.py with the visible form values as environment.
+        Start the packaged FastAPI node with the visible form values as environment.
 
         The node is launched as a subprocess using the same Python interpreter
         that runs the launcher, so it uses the same venv/dependencies.
@@ -193,6 +234,7 @@ class V2NodeLauncher(tk.Tk):
             return
 
         env = os.environ.copy()
+        existing_pythonpath = env.get("PYTHONPATH", "")
         env.update(
             {
                 "NODE_ID": self.node_id.get().strip(),
@@ -201,16 +243,19 @@ class V2NodeLauncher(tk.Tk):
                 "DATA_DIR": self.data_dir.get().strip(),
                 "PORT": self.port.get().strip(),
                 "ADMIN_KEY": self.admin_key.get().strip(),
+                "V2_ADMIN_KEY": self.admin_key.get().strip(),
+                "V2_NODE_KEY": self.node_api_key.get().strip(),
                 "PEERS": self.peers.get().strip(),
+                "PYTHONPATH": str(PROJECT_DIR) if not existing_pythonpath else f"{PROJECT_DIR}{os.pathsep}{existing_pythonpath}",
             }
         )
 
-        self._log_line("Starting node with visible configuration:")
+        self._log_line("Start single node:")
         for key in ["NODE_ID", "PORT", "DATA_DIR", "PEERS", "VALIDATORS_JSON"]:
             self._log_line(f"  {key}={env[key]}")
 
         self.process = subprocess.Popen(
-            [sys.executable, "blockchainV1.py"],
+            [sys.executable, "-m", "voting_system.blockchain_v1"],
             cwd=PROJECT_DIR,
             env=env,
             stdout=subprocess.PIPE,
@@ -317,11 +362,87 @@ class V2NodeLauncher(tk.Tk):
             self.process.kill()
         self._log_line("Node stopped.")
 
+    def start_demo_network(self) -> None:
+        """
+        Start the three-node presentation network from inside the launcher.
+
+        This runs `scripts/run_v2_demo_network.py` as a subprocess. Keeping the
+        network script as the single source of truth prevents the GUI and CLI
+        paths from drifting apart.
+        """
+        if self.demo_network_process and self.demo_network_process.poll() is None:
+            messagebox.showinfo("Demo Network laeuft bereits", "Die 3-Node-Demo ist schon gestartet.")
+            return
+
+        try:
+            base_port = int(self.demo_network_base_port.get().strip())
+        except ValueError:
+            messagebox.showerror("Base Port ungueltig", "Bitte eine Zahl fuer den Base Port eintragen.")
+            return
+
+        command = [
+            sys.executable,
+            str(PROJECT_DIR / "scripts" / "run_v2_demo_network.py"),
+            "--base-port",
+            str(base_port),
+        ]
+        if self.demo_network_reset.get():
+            command.append("--reset")
+
+        self._log_line("Start demo network:")
+        self._log_line("  " + " ".join(command))
+        self._log_line(f"  node1 dashboard: http://127.0.0.1:{base_port}/dashboard")
+        self._log_line(f"  voter client:     http://127.0.0.1:{base_port}/voter")
+        self._log_line(f"  committee client: http://127.0.0.1:{base_port}/committee")
+        self._log_line(f"  node2 dashboard: http://127.0.0.1:{base_port + 1}/dashboard")
+        self._log_line(f"  node3 dashboard: http://127.0.0.1:{base_port + 2}/dashboard")
+
+        env = os.environ.copy()
+        existing_pythonpath = env.get("PYTHONPATH", "")
+        env["PYTHONPATH"] = str(PROJECT_DIR) if not existing_pythonpath else f"{PROJECT_DIR}{os.pathsep}{existing_pythonpath}"
+        self.demo_network_process = subprocess.Popen(
+            command,
+            cwd=PROJECT_DIR,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+        threading.Thread(target=self._stream_demo_network_output, daemon=True).start()
+
+    def stop_demo_network(self) -> None:
+        """Terminate the three-node demo network subprocess, if it is running."""
+        if not self.demo_network_process or self.demo_network_process.poll() is not None:
+            self._log_line("No running demo network process.")
+            return
+
+        self._log_line("Stopping 3-node demo network...")
+        self.demo_network_process.terminate()
+        try:
+            self.demo_network_process.wait(timeout=8)
+        except subprocess.TimeoutExpired:
+            self._log_line("Demo network did not stop in time; killing process.")
+            self.demo_network_process.kill()
+        self._log_line("Demo network stopped.")
+
+    def open_demo_network_links(self) -> None:
+        """Open the main presentation pages for the configured demo network."""
+        try:
+            base_port = int(self.demo_network_base_port.get().strip())
+        except ValueError:
+            messagebox.showerror("Base Port ungueltig", "Bitte eine Zahl fuer den Base Port eintragen.")
+            return
+
+        for path in ["dashboard", "voter", "committee"]:
+            webbrowser.open(f"http://127.0.0.1:{base_port}/{path}")
+        self._log_line(f"Opened demo pages for node1 on port {base_port}.")
+
     def open_dashboard(self) -> None:
         """Open the browser dashboard and point it at this node's port."""
-        dashboard = PROJECT_DIR / "frontend_v2.html"
-        webbrowser.open(dashboard.resolve().as_uri())
-        self._log_line(f"Dashboard opened. Set API URL to http://127.0.0.1:{self.port.get().strip()}")
+        url = f"http://127.0.0.1:{self.port.get().strip()}/dashboard"
+        webbrowser.open(url)
+        self._log_line(f"Opened dashboard: {url}")
 
     def open_docs(self) -> None:
         """Open FastAPI docs for the running node."""
@@ -329,8 +450,8 @@ class V2NodeLauncher(tk.Tk):
 
     def show_demo_command(self) -> None:
         """Show the simplified demo-client command for the current node."""
-        command = f"{sys.executable} v2_demo_client.py --api-url http://127.0.0.1:{self.port.get().strip()} full-demo"
-        self._log_line("Run this in a second terminal for a full visible demo:")
+        command = f"{sys.executable} scripts/v2_demo_client.py --api-url http://127.0.0.1:{self.port.get().strip()} full-demo"
+        self._log_line("Demo client command:")
         self._log_line(command)
 
     def _stream_process_output(self) -> None:
@@ -340,6 +461,14 @@ class V2NodeLauncher(tk.Tk):
         for line in self.process.stdout:
             self._log_line(line.rstrip())
         self._log_line(f"Node process exited with code {self.process.poll()}.")
+
+    def _stream_demo_network_output(self) -> None:
+        """Forward the demo-network subprocess output into the GUI log."""
+        assert self.demo_network_process is not None
+        assert self.demo_network_process.stdout is not None
+        for line in self.demo_network_process.stdout:
+            self._log_line("[network] " + line.rstrip())
+        self._log_line(f"Demo network process exited with code {self.demo_network_process.poll()}.")
 
     def _log_line(self, line: str) -> None:
         """Append one line to the GUI log from any thread."""
@@ -351,7 +480,8 @@ class V2NodeLauncher(tk.Tk):
         self.log.see(tk.END)
 
     def destroy(self) -> None:
-        """Stop the node process when the launcher window closes."""
+        """Stop child processes when the launcher window closes."""
+        self.stop_demo_network()
         self.stop_node()
         super().destroy()
 

@@ -1,6 +1,6 @@
 import unittest
 
-from crypto_elgamal_tally import (
+from voting_system.crypto_elgamal_tally import (
     aggregate_encrypted_ballots,
     compute_decryption_factor,
     create_decryption_proof,

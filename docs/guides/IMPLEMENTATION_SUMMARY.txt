@@ -1,0 +1,111 @@
+IMPLEMENTATION SUMMARY - V2 PROTOTYP
+====================================
+
+ZIEL
+----
+
+Eine eigene verteilte Python-Chain speichert nur verschluesselte Ballots.
+Ein Threshold-Committee publiziert das Gesamtergebnis mit Proofs. Jede Node
+kann das Ergebnis aus oeffentlichen Chain-Daten pruefen.
+
+
+AKTIVE KOMPONENTEN
+------------------
+
+voting_system/distributed_blockchain.py
+    PoA-Chain, Mempool, Ed25519-Blocks, JSON-Persistenz, Peer-Sync,
+    Wahl-State, Nullifier-Regeln und Public Verify.
+
+voting_system/crypto_petlib_elgamal_tally.py
+    Petlib P-256 EC-ElGamal, homomorpher Tally, Shamir Threshold,
+    Partial Decryptions und Chaum-Pedersen-Verifikation.
+
+web/src/voting_crypto.js
+    Noble P-256 im Browser. Erzeugt Petlib-kompatible Ciphertexts,
+    getrennte Committee-Shares und Tally-Proofs lokal.
+
+web/frontend_v2.html
+    Node-/Admin-Dashboard fuer Wahl, Mempool, Mining, Sync und Verify.
+
+web/voter_client.html
+    Lokale Commitment-, Nullifier- und Ballot-Erzeugung. Secret und
+    Kandidat werden nicht an die Node gesendet.
+
+web/committee_client.html
+    Laedt einzelne private Share-Dateien und publiziert erst ab Threshold.
+
+scripts/run_v2_demo_network.py
+    Startet einen Validator und zwei Observer als getrennte Prozesse.
+
+
+ROLLEN UND KEYS
+---------------
+
+Admin:
+    X-Admin-Key fuer create_election und finalize_election.
+
+Node Operator:
+    X-Node-Key fuer Peer-Aenderung, Sync und Mining.
+
+Voter:
+    Darf Registrierung und encrypted Vote einreichen, aber nicht minen.
+
+Committee:
+    Darf nur einen Tally einreichen, der die kryptografische Verifikation
+    der Chain besteht.
+
+
+CHAIN-DATEN
+-----------
+
+Gespeichert werden:
+
+- Wahlmetadaten und Committee-Public-Payload
+- registrierte Demo-Commitment-Hashes
+- gebundene Nullifier-Hashes
+- EC-ElGamal-Ciphertexts
+- encrypted Tally, Klarergebnis, Partial Decryptions und Proofs
+
+Nicht gespeichert oder an die Node gesendet werden:
+
+- Name
+- Voter-Secret
+- Kandidatenauswahl als Klarwert
+- private Committee-Shares
+
+
+VERIFY-BEDEUTUNG
+----------------
+
+valid=true
+    Die bisher vorhandenen Chain-Daten enthalten keinen erkannten Fehler.
+
+complete=true und result_status=verified
+    Wahl ist finalisiert, Ergebnis publiziert und komplett gegen Ballots,
+    Public Shares und Proofs geprueft.
+
+
+TESTABDECKUNG
+-------------
+
+- Pure-Python- und Petlib-Kryptografie
+- Noble-Browser-Kryptografie
+- Noble-Payloads werden von Petlib akzeptiert
+- Hash-, Signatur-, Mempool- und Nullifier-Regeln
+- Rollenkeys
+- echter HTTP-Sync zwischen drei FastAPI-Prozessen
+- HTML-Routen und Browser-Crypto-Bundle
+
+
+NICHT PRODUKTIV IMPLEMENTIERT
+-----------------------------
+
+- Semaphore oder anderer echter ZK-Membership-Proof
+- ZK-Beweis fuer gueltige One-Hot-Ballots
+- reale Ausgabe und Sperrung von Wahlberechtigungen
+- verschluesselter/HSM-gestuetzter Share-Speicher
+- BFT-Konsens und automatische Gossip-Verteilung
+- Metadatenschutz, Audits, formale Analyse und Zulassung
+
+Der Ethereum-/Hardhat-Entwurf liegt nur noch unter
+archive/ethereum-experiment/ und gehoert nicht zum aktiven V2-Build.

@@ -1,6 +1,6 @@
 import unittest
 
-from crypto_tally import (
+from voting_system.crypto_tally import (
     aggregate_encrypted_ballots,
     decrypt,
     decrypt_tally,

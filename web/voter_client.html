@@ -169,7 +169,7 @@
 <body>
     <header>
         <h1>V2 Voter Client</h1>
-        <p class="subtitle">Getrennte Stimmenabgabe: Waehler sieht Kandidaten und Klarauswahl lokal; die Chain erhaelt nur Nullifier, Placeholder-Proofs und encrypted_ballot.</p>
+        <p class="subtitle">Secret und Auswahl bleiben im Browser. Die Node erhaelt nur Hashes und Ciphertexts.</p>
     </header>
 
     <main>
@@ -182,7 +182,7 @@
                     <button onclick="loadElections()">Wahlen laden</button>
                     <button class="secondary" onclick="openDashboard()">Node Dashboard oeffnen</button>
                 </div>
-                <div id="connectionFeedback" class="feedback muted">Noch keine Aktion ausgefuehrt.</div>
+                <div id="connectionFeedback" class="feedback muted">Bereit.</div>
             </div>
 
             <div class="panel span-4">
@@ -199,15 +199,11 @@
                 <h2>3. Waehler-Demo-Secret</h2>
                 <label for="voterSecret">Lokales Secret/Pseudonym</label>
                 <input id="voterSecret" value="alice">
-                <label>
-                    <input id="mineDirectly" type="checkbox" style="width: auto; min-height: auto;">
-                    Direkt Block minen
-                </label>
                 <div class="button-row">
                     <button class="secondary" onclick="registerVoter()">Registrieren</button>
                     <button onclick="castVote()">Verschluesselt waehlen</button>
                 </div>
-                <div id="voterFeedback" class="feedback muted">Bereit fuer Registrierung oder Stimmabgabe.</div>
+                <div id="voterFeedback" class="feedback muted">Bereit.</div>
             </div>
 
             <div class="panel span-5">
@@ -220,9 +216,8 @@
                 <div id="txStatus" class="list" style="margin-bottom: 12px;"></div>
                 <div class="button-row">
                     <button class="secondary" onclick="refreshLastTransactionStatus()">Status neu laden</button>
-                    <button class="secondary" onclick="mineBlockFromVoter()">Pending Block minen</button>
                 </div>
-                <div id="txFeedback" class="feedback muted">Noch keine Transaktion ausgewaehlt.</div>
+                <div id="txFeedback" class="feedback muted">Keine Transaktion.</div>
             </div>
 
             <div class="panel span-12">
@@ -232,6 +227,7 @@
         </section>
     </main>
 
+    <script src="/assets/voting_crypto.bundle.js"></script>
     <script>
         let selectedElection = null;
         let selectedCandidateIndex = null;
@@ -373,23 +369,29 @@
                 setFeedback('voterFeedback', 'error', 'Bitte zuerst eine Wahl auswaehlen.');
                 return;
             }
-            setFeedback('voterFeedback', 'pending', 'Registriere Demo-Waehler: commitment_hash wird erzeugt und als Transaktion gesendet...');
+            setFeedback('voterFeedback', 'pending', 'Registriere Voter...');
             try {
-                const result = await requestJson('/api/v2/demo/register-voter', {
+                const credentials = VotingCrypto.deriveVoterCredentials(
+                    selectedElection.election_id,
+                    document.getElementById('voterSecret').value,
+                );
+                const result = await requestJson('/api/v2/transactions', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        election_id: selectedElection.election_id,
-                        voter_secret: document.getElementById('voterSecret').value,
-                        mine: document.getElementById('mineDirectly').checked,
+                        type: 'register_voter',
+                        payload: {
+                            election_id: selectedElection.election_id,
+                            commitment_hash: credentials.commitment_hash,
+                        },
                     }),
                 });
                 showRaw(result);
                 lastTransactionId = result.transaction.tx_id;
                 await refreshLastTransactionStatus();
-                renderPreview(`<strong>Registriert</strong><div class="mono">commitment: ${escapeHtml(result.commitment_hash)}</div>`);
+                renderPreview(`<strong>Registrierung gesendet</strong><div class="mono">commitment: ${escapeHtml(credentials.commitment_hash)}</div>`);
                 await loadElections();
-                setFeedback('voterFeedback', 'success', result.block ? 'Registrierung wurde direkt in einen Block geschrieben.' : 'Registrierung liegt im Mempool und wartet auf einen Block.');
+                setFeedback('voterFeedback', 'success', 'Registrierung im Mempool. Validator muss einen Block erstellen.');
             } catch (error) {
                 setFeedback('voterFeedback', 'error', `Registrierung fehlgeschlagen: ${error.message}`);
             }
@@ -404,16 +406,19 @@
                 setFeedback('voterFeedback', 'error', 'Bitte zuerst einen Kandidaten auswaehlen.');
                 return;
             }
-            setFeedback('voterFeedback', 'pending', 'Stimme wird verschluesselt und als cast_encrypted_vote Transaktion gesendet...');
+            setFeedback('voterFeedback', 'pending', 'Sende encrypted Vote...');
             try {
-                const result = await requestJson('/api/v2/demo/cast-vote', {
+                const votePayload = VotingCrypto.createEncryptedVotePayload(
+                    selectedElection,
+                    document.getElementById('voterSecret').value,
+                    selectedCandidateIndex,
+                );
+                const result = await requestJson('/api/v2/transactions', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        election_id: selectedElection.election_id,
-                        voter_secret: document.getElementById('voterSecret').value,
-                        candidate_index: selectedCandidateIndex,
-                        mine: document.getElementById('mineDirectly').checked,
+                        type: 'cast_encrypted_vote',
+                        payload: votePayload,
                     }),
                 });
                 showRaw(result);
@@ -421,12 +426,12 @@
                 await refreshLastTransactionStatus();
                 renderPreview(`
                     <strong>Vote gesendet</strong>
-                    <div>candidate: ${escapeHtml(result.candidate)}</div>
-                    <div class="mono">nullifier: ${escapeHtml(result.nullifier_hash)}</div>
+                    <div>Auswahl wurde lokal verschluesselt.</div>
+                    <div class="mono">nullifier: ${escapeHtml(votePayload.nullifier_hash)}</div>
                     <div class="mono">tx: ${escapeHtml(result.transaction.tx_id)}</div>
                 `);
                 await loadElections();
-                setFeedback('voterFeedback', 'success', result.block ? 'Verschluesselte Stimme wurde direkt in einen Block geschrieben.' : 'Verschluesselte Stimme liegt im Mempool und wartet auf einen Block.');
+                setFeedback('voterFeedback', 'success', 'Verschluesselter Vote im Mempool. Validator muss einen Block erstellen.');
             } catch (error) {
                 setFeedback('voterFeedback', 'error', `Stimmabgabe fehlgeschlagen: ${error.message}`);
             }
@@ -494,18 +499,6 @@
             `;
         }
 
-        async function mineBlockFromVoter() {
-            setFeedback('txFeedback', 'pending', 'Mempool wird von der Validator-Node als Block signiert...');
-            try {
-                const result = await requestJson('/api/v2/blocks/mine', { method: 'POST' });
-                showRaw(result);
-                await refreshLastTransactionStatus();
-                await loadElections();
-                setFeedback('txFeedback', 'success', `Block #${result.block.index} wurde erstellt.`);
-            } catch (error) {
-                setFeedback('txFeedback', 'error', `Block konnte nicht erstellt werden: ${error.message}`);
-            }
-        }
     </script>
 </body>
 </html>

@@ -24,11 +24,11 @@ from __future__ import annotations
 import copy
 import datetime as dt
 import hashlib
+import hmac
 import json
 import os
 import urllib.error
 import urllib.request
-import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
@@ -36,32 +36,25 @@ from typing import Any, Dict, Iterable, List, Optional
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
+from petlib.bn import Bn
 
-from crypto_petlib_elgamal_tally import (
-    CommitteeKeyShares,
-    CommitteeMemberShare,
+from voting_system.crypto_petlib_elgamal_tally import (
     EncryptedBallot,
     EncryptedTally,
     PetlibPublicKey,
     ThresholdPublishedTallyResult,
     aggregate_encrypted_ballots,
     combine_partial_decryption_factors,
-    encrypt_candidate_vote,
-    generate_committee_key_shares,
-    publish_threshold_tally_result,
     public_shares_from_payload,
     remove_decryption_factor,
     verify_partial_decryption_proof,
     verify_threshold_tally_result,
 )
 
-from petlib.bn import Bn
-
 
 CHAIN_FILE = "chain.json"
 MEMPOOL_FILE = "mempool.json"
 PEERS_FILE = "peers.json"
-DEMO_COMMITTEE_DIR = "demo_committees"
 GENESIS_VALIDATOR_ID = "genesis"
 
 
@@ -84,11 +77,6 @@ def canonical_json(value: Any) -> str:
 def sha256_hex(value: Any) -> str:
     """Hash a JSON-compatible value with the canonical representation."""
     return hashlib.sha256(canonical_json(value).encode("utf-8")).hexdigest()
-
-
-def sha256_text_hex(value: str) -> str:
-    """Hash plain text for demo commitments and nullifiers."""
-    return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
 def parse_time(value: str) -> dt.datetime:
@@ -397,235 +385,6 @@ class DistributedVotingBlockchain:
         self._persist_mempool()
         return transaction
 
-    def create_demo_election(
-        self,
-        title: str,
-        candidates: List[str],
-        duration_minutes: int,
-        member_count: int,
-        threshold: int,
-        election_id: Optional[str] = None,
-        mine: bool = False,
-    ) -> dict:
-        """
-        Create a demo election transaction with freshly generated committee keys.
-
-        This helper exists for the presentation GUI. A browser cannot use the
-        Python Petlib objects directly, so the node creates the demo committee
-        key material, stores private shares locally under DATA_DIR, and submits
-        only the public committee payload to the chain.
-
-        Important boundary:
-        The saved private shares are a local demo convenience. They are never
-        included in the public transaction. A real system would distribute one
-        private share to each committee member instead of storing all shares on
-        the node.
-        """
-        clean_title = str(title).strip()
-        clean_candidates = [str(candidate).strip() for candidate in candidates if str(candidate).strip()]
-        if not clean_title:
-            raise ValueError("title is required")
-        if len(clean_candidates) < 2:
-            raise ValueError("at least two candidates are required")
-        if len(set(clean_candidates)) != len(clean_candidates):
-            raise ValueError("candidate names must be unique")
-        if duration_minutes <= 0:
-            raise ValueError("duration_minutes must be greater than 0")
-
-        committee = generate_committee_key_shares(member_count=member_count, threshold=threshold)
-        now = dt.datetime.now(dt.timezone.utc)
-        clean_election_id = election_id or str(uuid.uuid4())
-        payload = {
-            "election_id": clean_election_id,
-            "title": clean_title,
-            "options": clean_candidates,
-            "start_time": now.isoformat(),
-            "end_time": (now + dt.timedelta(minutes=duration_minutes)).isoformat(),
-            "committee": committee.public_payload(),
-        }
-        private_state_path = self._save_demo_committee_state(clean_election_id, clean_candidates, committee)
-        transaction = self.submit_transaction("create_election", payload)
-        block = self.mine_block() if mine else None
-        return {
-            "election_id": clean_election_id,
-            "candidates": [
-                {"candidate_index": index, "candidate": candidate}
-                for index, candidate in enumerate(clean_candidates)
-            ],
-            "committee_public_payload": committee.public_payload(),
-            "private_committee_state_path": str(private_state_path),
-            "transaction": transaction,
-            "block": block,
-        }
-
-    def register_demo_voter(self, election_id: str, voter_secret: str, mine: bool = False) -> dict:
-        """
-        Create and submit a demo voter-registration transaction.
-
-        The voter secret is not stored on-chain. It is only used locally to
-        derive a stable commitment hash for the presentation flow. A later
-        Semaphore integration would replace this with a real membership proof.
-        """
-        clean_secret = str(voter_secret).strip()
-        if not clean_secret:
-            raise ValueError("voter_secret is required")
-
-        commitment_hash = sha256_text_hex(clean_secret)
-        payload = {
-            "election_id": election_id,
-            "commitment_hash": commitment_hash,
-        }
-        transaction = self.submit_transaction("register_voter", payload)
-        block = self.mine_block() if mine else None
-        return {
-            "election_id": election_id,
-            "commitment_hash": commitment_hash,
-            "transaction": transaction,
-            "block": block,
-        }
-
-    def cast_demo_vote(
-        self,
-        election_id: str,
-        voter_secret: str,
-        candidate_index: int,
-        mine: bool = False,
-    ) -> dict:
-        """
-        Encrypt and submit one demo vote for a selected candidate.
-
-        The clear candidate choice exists only in this helper call and the
-        response shown to the presenter. The chain transaction contains only an
-        encrypted ballot, a nullifier, and placeholder proof fields.
-        """
-        clean_secret = str(voter_secret).strip()
-        if not clean_secret:
-            raise ValueError("voter_secret is required")
-
-        state = self.reconstruct_state(extra_transactions=self.mempool)
-        election = self._existing_election(election_id, state)
-        if candidate_index < 0 or candidate_index >= len(election.options):
-            raise ValueError("candidate_index out of range")
-
-        public_key = PetlibPublicKey.from_payload(election.committee)
-        ballot = encrypt_candidate_vote(public_key, candidate_index, len(election.options))
-        commitment_hash = sha256_text_hex(clean_secret)
-        nullifier_hash = sha256_text_hex(f"{election_id}:{clean_secret}:nullifier")
-        payload = {
-            "election_id": election_id,
-            "nullifier_hash": nullifier_hash,
-            "encrypted_ballot": ballot.to_chain_payload(),
-            "eligibility_proof_placeholder": {
-                "type": "semaphore-placeholder",
-                "accepted": True,
-                "commitment_hash": commitment_hash,
-            },
-            "ballot_validity_proof_placeholder": {
-                "type": "one-hot-zk-placeholder",
-                "accepted": True,
-            },
-        }
-        transaction = self.submit_transaction("cast_encrypted_vote", payload)
-        block = self.mine_block() if mine else None
-        return {
-            "election_id": election_id,
-            "candidate_index": candidate_index,
-            "candidate": election.options[candidate_index],
-            "one_hot_preview": [
-                1 if index == candidate_index else 0
-                for index in range(len(election.options))
-            ],
-            "commitment_hash": commitment_hash,
-            "nullifier_hash": nullifier_hash,
-            "encrypted_ballot": ballot.to_chain_payload(),
-            "transaction": transaction,
-            "block": block,
-        }
-
-    def committee_demo_preview(self, election_id: str, participating_member_ids: List[int]) -> dict:
-        """
-        Show whether the local demo committee can decrypt this election.
-
-        The preview is used by the Committee Client before publishing anything.
-        It reports ballot count, selected members, required threshold and whether
-        enough shares are available. It also computes the encrypted tally when
-        ballots exist, but does not write to the chain.
-        """
-        committee, private_state_path = self._load_demo_committee(election_id)
-        election = self.get_election(election_id)
-        selected_members = list(dict.fromkeys(int(member_id) for member_id in participating_member_ids))
-        available_members = [member.member_id for member in committee.member_shares]
-        missing_members = [member_id for member_id in selected_members if member_id not in available_members]
-        threshold_met = len(selected_members) >= committee.threshold and not missing_members
-        encrypted_tally = self.encrypted_tally(election_id)
-        return {
-            "election_id": election_id,
-            "options": election.options,
-            "encrypted_ballot_count": len(election.encrypted_ballots),
-            "committee_threshold": committee.threshold,
-            "committee_member_count": committee.member_count,
-            "available_member_ids": available_members,
-            "selected_member_ids": selected_members,
-            "missing_member_ids": missing_members,
-            "threshold_met": threshold_met,
-            "private_committee_state_path": str(private_state_path),
-            "encrypted_tally": encrypted_tally,
-            "already_published": election.published_result is not None,
-        }
-
-    def publish_demo_tally(
-        self,
-        election_id: str,
-        participating_member_ids: List[int],
-        mine: bool = False,
-    ) -> dict:
-        """
-        Publish a threshold tally result using locally stored demo committee shares.
-
-        This is the Committee Client counterpart to the Voter Client. It loads
-        private demo shares from DATA_DIR, aggregates encrypted ballots from the
-        chain, computes partial decryptions and proofs, then submits a
-        `publish_tally_result` transaction. Private shares stay local.
-        """
-        committee, private_state_path = self._load_demo_committee(election_id)
-        election = self.get_election(election_id)
-        if not election.encrypted_ballots:
-            raise ValueError("cannot publish tally without encrypted ballots")
-
-        selected_members = list(dict.fromkeys(int(member_id) for member_id in participating_member_ids))
-        if len(selected_members) < committee.threshold:
-            raise ValueError("not enough committee members selected for threshold")
-
-        ballots = [
-            EncryptedBallot.from_chain_payload(committee.public_key, ballot_payload)
-            for ballot_payload in election.encrypted_ballots
-        ]
-        encrypted_tally = aggregate_encrypted_ballots(committee.public_key, ballots)
-        published_result = publish_threshold_tally_result(
-            committee=committee,
-            encrypted_tally=encrypted_tally,
-            participating_member_ids=selected_members,
-            max_plaintext=len(ballots),
-        )
-        payload = {
-            "election_id": election_id,
-            "encrypted_tally": encrypted_tally.to_chain_payload(),
-            "published_result": published_result.to_payload(),
-        }
-        transaction = self.submit_transaction("publish_tally_result", payload)
-        block = self.mine_block() if mine else None
-        return {
-            "election_id": election_id,
-            "selected_member_ids": selected_members,
-            "committee_threshold": committee.threshold,
-            "private_committee_state_path": str(private_state_path),
-            "encrypted_tally": encrypted_tally.to_chain_payload(),
-            "plaintext_tally": published_result.plaintext_tally,
-            "published_result": published_result.to_payload(),
-            "transaction": transaction,
-            "block": block,
-        }
-
     def mine_block(self) -> dict:
         """
         Create, sign and commit a block from the current mempool.
@@ -887,11 +646,23 @@ class DistributedVotingBlockchain:
                 }
             )
 
+        checks_passed = all(value is not False for value in checks.values())
+        result_complete = bool(
+            election.finalized
+            and election.published_result
+            and checks.get("published_result_valid") is True
+        )
         return {
             "election_id": election_id,
             "checks": checks,
             "published_details": published_details,
-            "valid": all(value is not False for value in checks.values()),
+            "valid": checks_passed,
+            "complete": result_complete,
+            "result_status": (
+                "verified" if result_complete
+                else "awaiting_tally" if election.finalized
+                else "election_open"
+            ),
         }
 
     def is_chain_valid(self) -> bool:
@@ -946,64 +717,6 @@ class DistributedVotingBlockchain:
     def _write_json(self, path: Path, value: Any) -> None:
         """Write JSON in a stable, human-readable form for debugging demos."""
         path.write_text(json.dumps(value, indent=2, sort_keys=True))
-
-    def _save_demo_committee_state(self, election_id: str, options: List[str], committee) -> Path:
-        """
-        Persist private committee shares for demo-only later tally publication.
-
-        The file is intentionally placed below the node's DATA_DIR. It lets a
-        future Committee View publish the threshold tally without asking the
-        presenter to manually copy private shares around.
-        """
-        state_dir = self.data_dir / DEMO_COMMITTEE_DIR
-        state_dir.mkdir(parents=True, exist_ok=True)
-        path = state_dir / f"{election_id}.json"
-        private_state = {
-            "election_id": election_id,
-            "options": options,
-            "committee_public_payload": committee.public_payload(),
-            "member_shares": [
-                {
-                    "member_id": member.member_id,
-                    "share": str(int(member.share)),
-                }
-                for member in committee.member_shares
-            ],
-        }
-        self._write_json(path, private_state)
-        return path
-
-    def _load_demo_committee(self, election_id: str) -> tuple[CommitteeKeyShares, Path]:
-        """
-        Load local demo committee private shares for an election.
-
-        This is intentionally not a chain feature. It reads a local file created
-        by `create_demo_election` so the Committee Client can simulate threshold
-        decryption during a presentation.
-        """
-        path = self.data_dir / DEMO_COMMITTEE_DIR / f"{election_id}.json"
-        if not path.exists():
-            raise ValueError("local demo committee state not found for election")
-
-        state = json.loads(path.read_text())
-        public_payload = state["committee_public_payload"]
-        public_key = PetlibPublicKey.from_payload(public_payload)
-        public_shares = public_shares_from_payload(public_key, public_payload)
-        member_shares = [
-            CommitteeMemberShare(
-                member_id=int(member["member_id"]),
-                share=Bn.from_decimal(str(member["share"])),
-                public_share=public_shares[int(member["member_id"])],
-            )
-            for member in state["member_shares"]
-        ]
-        committee = CommitteeKeyShares(
-            public_key=public_key,
-            threshold=int(public_payload["threshold"]),
-            member_count=int(public_payload["member_count"]),
-            member_shares=member_shares,
-        )
-        return committee, path
 
     def _validate_chain(self, chain: List[dict]) -> None:
         """Validate a complete chain from genesis to tip."""
@@ -1155,6 +868,15 @@ class DistributedVotingBlockchain:
         commitment_hash = str(eligibility_proof.get("commitment_hash", "")).strip()
         if commitment_hash not in election.registered_commitments:
             raise ValueError("eligibility commitment is not registered")
+        if eligibility_proof.get("type") != "deterministic-nullifier-demo-v2":
+            raise ValueError("unsupported eligibility proof placeholder")
+        expected_nullifier = hashlib.sha256(
+            f"{election.election_id}:{commitment_hash}:nullifier".encode("utf-8")
+        ).hexdigest()
+        if not hmac.compare_digest(nullifier_hash, expected_nullifier):
+            raise ValueError("nullifier is not bound to the registered commitment")
+        if ballot_proof.get("type") != "local-one-hot-encryption-demo-v2":
+            raise ValueError("unsupported ballot validity proof placeholder")
 
         public_key = PetlibPublicKey.from_payload(election.committee)
         encrypted_ballot = EncryptedBallot.from_chain_payload(public_key, payload["encrypted_ballot"])
@@ -1322,13 +1044,20 @@ def register_v2_routes(app, node: Optional[DistributedVotingBlockchain] = None):
     The old API in `blockchainV1.py` can continue to exist. This function only
     adds `/api/v2/*` routes and stores the v2 node under `app.state.v2_node`.
     """
-    from fastapi import Body, HTTPException, status
+    from fastapi import Body, Header, HTTPException, status
 
     v2_node = node or DistributedVotingBlockchain.from_env()
     app.state.v2_node = v2_node
+    admin_api_key = os.environ.get("V2_ADMIN_KEY", os.environ.get("ADMIN_KEY", "dev_admin_key"))
+    node_api_key = os.environ.get("V2_NODE_KEY", "dev_node_key")
 
     def api_error(exc: Exception, status_code: int = status.HTTP_400_BAD_REQUEST):
         raise HTTPException(status_code=status_code, detail=str(exc))
+
+    def require_api_key(provided: Optional[str], expected: str, role: str) -> None:
+        """Reject privileged API actions unless the caller presents the role key."""
+        if not provided or not hmac.compare_digest(provided, expected):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"{role} key is invalid")
 
     @app.get("/api/v2/node/info")
     def v2_node_info():
@@ -1357,83 +1086,30 @@ def register_v2_routes(app, node: Optional[DistributedVotingBlockchain] = None):
             api_error(exc)
 
     @app.post("/api/v2/peers")
-    def v2_add_peer(data: dict = Body(...)):
+    def v2_add_peer(data: dict = Body(...), x_node_key: Optional[str] = Header(None)):
+        require_api_key(x_node_key, node_api_key, "node")
         v2_node.add_peer(str(data.get("url", "")))
         return {"peers": v2_node.peers}
 
     @app.post("/api/v2/sync")
-    def v2_sync():
+    def v2_sync(x_node_key: Optional[str] = Header(None)):
+        require_api_key(x_node_key, node_api_key, "node")
         return v2_node.sync_from_peers()
 
     @app.post("/api/v2/transactions", status_code=status.HTTP_201_CREATED)
-    def v2_submit_transaction(data: dict = Body(...)):
+    def v2_submit_transaction(data: dict = Body(...), x_admin_key: Optional[str] = Header(None)):
         try:
-            transaction = v2_node.submit_transaction(str(data["type"]), data.get("payload", {}))
+            tx_type = str(data["type"])
+            if tx_type in {"create_election", "finalize_election"}:
+                require_api_key(x_admin_key, admin_api_key, "admin")
+            transaction = v2_node.submit_transaction(tx_type, data.get("payload", {}))
             return {"message": "transaction accepted into mempool", "transaction": transaction}
         except (KeyError, ValueError) as exc:
             api_error(exc)
 
-    @app.post("/api/v2/demo/create-election", status_code=status.HTTP_201_CREATED)
-    def v2_demo_create_election(data: dict = Body(...)):
-        try:
-            return v2_node.create_demo_election(
-                title=str(data.get("title", "")),
-                candidates=data.get("candidates", []),
-                duration_minutes=int(data.get("duration_minutes", 60)),
-                member_count=int(data.get("member_count", 5)),
-                threshold=int(data.get("threshold", 3)),
-                election_id=data.get("election_id"),
-                mine=bool(data.get("mine", False)),
-            )
-        except (TypeError, ValueError) as exc:
-            api_error(exc)
-
-    @app.post("/api/v2/demo/register-voter", status_code=status.HTTP_201_CREATED)
-    def v2_demo_register_voter(data: dict = Body(...)):
-        try:
-            return v2_node.register_demo_voter(
-                election_id=str(data.get("election_id", "")),
-                voter_secret=str(data.get("voter_secret", "")),
-                mine=bool(data.get("mine", False)),
-            )
-        except ValueError as exc:
-            api_error(exc)
-
-    @app.post("/api/v2/demo/cast-vote", status_code=status.HTTP_201_CREATED)
-    def v2_demo_cast_vote(data: dict = Body(...)):
-        try:
-            return v2_node.cast_demo_vote(
-                election_id=str(data.get("election_id", "")),
-                voter_secret=str(data.get("voter_secret", "")),
-                candidate_index=int(data.get("candidate_index", -1)),
-                mine=bool(data.get("mine", False)),
-            )
-        except (TypeError, ValueError) as exc:
-            api_error(exc)
-
-    @app.post("/api/v2/demo/committee/preview")
-    def v2_demo_committee_preview(data: dict = Body(...)):
-        try:
-            return v2_node.committee_demo_preview(
-                election_id=str(data.get("election_id", "")),
-                participating_member_ids=data.get("participating_member_ids", []),
-            )
-        except (TypeError, ValueError) as exc:
-            api_error(exc)
-
-    @app.post("/api/v2/demo/committee/publish-tally", status_code=status.HTTP_201_CREATED)
-    def v2_demo_committee_publish_tally(data: dict = Body(...)):
-        try:
-            return v2_node.publish_demo_tally(
-                election_id=str(data.get("election_id", "")),
-                participating_member_ids=data.get("participating_member_ids", []),
-                mine=bool(data.get("mine", False)),
-            )
-        except (TypeError, ValueError) as exc:
-            api_error(exc)
-
     @app.post("/api/v2/blocks/mine", status_code=status.HTTP_201_CREATED)
-    def v2_mine_block():
+    def v2_mine_block(x_node_key: Optional[str] = Header(None)):
+        require_api_key(x_node_key, node_api_key, "node")
         try:
             block = v2_node.mine_block()
             return {"message": "block mined", "block": block}

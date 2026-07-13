@@ -4,15 +4,16 @@ TODO - Zielarchitektur: verteiltes Zero-Trust Voting
 Projektziel
 -----------
 
-[ ] Die Wahlkette soll nicht lokal auf einem Rechner liegen, sondern von n
-    beliebig vielen Nodes repliziert und verifiziert werden.
+[x] Die Wahlkette soll nicht nur lokal in einer einzelnen Instanz liegen,
+    sondern von mehreren lokalen Nodes repliziert und verifiziert werden.
 
-[ ] Auf der Chain duerfen keine Namen und keine Klarstimmen gespeichert werden.
+[x] Auf der v2-Chain duerfen keine Namen und keine Klarstimmen gespeichert
+    werden.
 
-[ ] Stimmen sollen verschluesselt auf der Chain stehen und oeffentlich
+[x] Stimmen sollen verschluesselt auf der Chain stehen und oeffentlich
     einsehbar sein.
 
-[ ] Jeder Node soll spaeter pruefen koennen, ob das veroeffentlichte Ergebnis
+[x] Jeder Node soll pruefen koennen, ob das veroeffentlichte Ergebnis
     korrekt aus den gespeicherten verschluesselten Stimmen berechnet wurde.
 
 
@@ -26,7 +27,7 @@ Phase 1 - Homomorphe Verschluesselung als Prototyp
     - Ja = 1
     - Stimme wird als Enc(0) oder Enc(1) gespeichert.
 
-[ ] Probabilistische Verschluesselung verwenden:
+[x] Probabilistische Verschluesselung verwenden:
     - gleiche Klarstimme darf nicht immer gleich aussehen
     - Enc(1) muss bei jeder Abgabe anders aussehen koennen
     - die Zufallswerte/Nonces duerfen nicht auf der Chain stehen.
@@ -52,21 +53,21 @@ Phase 1 - Homomorphe Verschluesselung als Prototyp
 Phase 2 - Chain-Speicher fuer verschluesselte Ballots
 -----------------------------------------------------
 
-[ ] Vote-Datenmodell umbauen:
+[x] Vote-Datenmodell in v2 umbauen:
     - keine `vote_option` als Klartext auf der Chain speichern
     - stattdessen `encrypted_vote` oder `encrypted_ballot` speichern.
 
-[ ] Fuer mehrere Optionen spaeter einen Vektor speichern:
+[x] Fuer mehrere Optionen einen One-Hot-Vektor speichern:
     - Option A: [Enc(1), Enc(0), Enc(0)]
     - Option B: [Enc(0), Enc(1), Enc(0)]
     - Option C: [Enc(0), Enc(0), Enc(1)]
 
-[ ] Ergebnislogik umbauen:
+[x] Ergebnislogik in v2 umbauen:
     - nicht lokale Klarstimmen zaehlen
     - alle Ciphertexts homomorph aggregieren
     - verschluesselte Gesamtsumme speichern/veroeffentlichen.
 
-[ ] Oeffentliche API ergaenzen:
+[x] Oeffentliche v2 API ergaenzen:
     - alle verschluesselten Ballots abrufen
     - verschluesselte Gesamtsumme abrufen
     - veroeffentlichtes Ergebnis abrufen
@@ -96,25 +97,28 @@ Phase 3 - Gueltigkeitsbeweise fuer Stimmen
 Phase 4 - Anonyme Wahlberechtigung und Double Voting
 ----------------------------------------------------
 
-[ ] Namen duerfen nicht auf der Chain gespeichert werden.
+[x] Namen duerfen in der v2-Demo nicht auf der Chain gespeichert werden.
 
 [ ] Wahlberechtigung anonym beweisen:
     - z.B. ueber Semaphore oder ein vergleichbares ZK-Membership-System.
 
-[ ] Double Voting ueber `nullifier_hash` verhindern:
+[x] Double Voting ueber `nullifier_hash` verhindern:
     - pro Wahl ist jeder Nullifier nur einmal erlaubt
-    - Nullifier darf nicht direkt auf die Person zurueckfuehren.
+    - Demo-Nullifier ist deterministisch an das registrierte Commitment gebunden
+    - anonyme Bindung bleibt Aufgabe eines spaeteren ZK-Proofs.
 
-[ ] Aktuelle lokale Commitment-Loesung spaeter ersetzen:
-    - aktuell verhindert `voted_commitments` doppelte Stimmen in der Demo
+[ ] Aktuelle lokale Commitment-/Nullifier-Loesung spaeter ersetzen:
+    - aktuell ist die Bindung oeffentlich pruefbar, aber nicht anonym
     - Ziel ist ein anonymer Nullifier statt Commitment als Identifikator.
 
 
 Phase 5 - Wahlkomitee und Threshold Decryption
 ----------------------------------------------
 
-[x] Privaten Entschluesselungsschluessel nicht bei einer einzelnen Person
-    speichern.
+[x] Committee-Key in einzelne private Member-Share-Dateien aufteilen.
+
+[ ] Private Share-Dateien produktiv an getrennte Personen/Geraete ausgeben und
+    mit Passwort, Hardware-Key oder HSM schuetzen.
 
 [x] Threshold-Verfahren planen:
     - z.B. 3 von 5 Komitee-Mitgliedern muessen zustimmen
@@ -138,17 +142,17 @@ Phase 5 - Wahlkomitee und Threshold Decryption
 Phase 6 - Oeffentliche Verifikation
 -----------------------------------
 
-[ ] Jeder Node soll lokal nachvollziehen koennen:
-    - alle Ballots sind gueltig
+[x] Jeder v2 Node soll lokal nachvollziehen koennen:
+    - encrypted Ballots sind importierbar
     - kein Nullifier kommt doppelt vor
     - alle gueltigen Ballots sind in die Summe eingegangen
     - die veroeffentlichte verschluesselte Summe ist korrekt
     - das entschluesselte Ergebnis passt zur verschluesselten Summe.
 
-[ ] Verifikationsfunktion/API bauen:
-    - `GET /api/verify/{election_id}` soll diese Checks spaeter abbilden.
+[x] Verifikationsfunktion/API bauen:
+    - `GET /api/v2/elections/{election_id}/verify` bildet diese Checks ab.
 
-[ ] Ergebnis darf nur als gueltig gelten, wenn alle Checks bestanden sind.
+[x] Ergebnis darf nur als gueltig gelten, wenn alle v2 Checks bestanden sind.
 
 
 Phase 7 - Verteilte Nodes statt lokaler Demo-Chain
@@ -184,8 +188,8 @@ Phase 7 - Verteilte Nodes statt lokaler Demo-Chain
     - published encrypted tally passt zu den Ballots
     - Threshold-Decryption-Proofs verifizieren ohne private Shares.
 
-[ ] Falls Smart Contract:
-    - VotingContract.sol ueberarbeiten
+[ ] Falls der archivierte Smart-Contract-Weg spaeter reaktiviert wird:
+    - `archive/ethereum-experiment/VotingContract.sol` komplett ueberarbeiten
     - verschluesselte Ballots und Nullifier speichern
     - Proof-Verifikation on-chain oder verifizierbar off-chain planen
     - Deployment und Tests ergaenzen.
@@ -194,11 +198,14 @@ Phase 7 - Verteilte Nodes statt lokaler Demo-Chain
 Offene Forschungsfragen
 -----------------------
 
-[ ] Welches homomorphe Verfahren ist fuer das Projekt am besten geeignet?
+[x] Welches homomorphe Verfahren ist fuer das Projekt am besten geeignet?
     - Paillier: gut verstaendlich fuer additive Tally-Demo
     - ElGamal: naeher an moderner Wahlkryptografie und Threshold-Decryption.
 
-[ ] Wie wird Threshold Decryption praktisch umgesetzt?
+[x] Wie wird Threshold Decryption praktisch umgesetzt?
+    - Shamir Shares ueber der P-256-Gruppenordnung
+    - Lagrange-Kombination von Partial Decryptions
+    - Chaum-Pedersen-Proofs pro Share und Kandidat.
 
 [ ] Welche ZK-Proofs sind fuer gueltige verschluesselte Stimmen realistisch?
 
@@ -220,3 +227,19 @@ Naechster konkreter Schritt
     - Ciphertexts homomorph aggregieren
     - Gesamtsumme entschluesseln
     - Verifikation per Tests demonstrieren.
+
+[x] Client-Geheimnisse von der Node trennen:
+    - Noble P-256 im Browser ist Petlib-kompatibel
+    - Voter-Secret und Klarwahl bleiben im Voter Client
+    - private Committee-Shares liegen in einzelnen Dateien
+    - Node empfaengt nur oeffentliche Transaktionsdaten.
+
+[x] Rollen und Integrationen absichern:
+    - Admin-Key fuer Wahl erstellen/finalisieren
+    - Node-Key fuer Peer-Aenderung, Sync und Mining
+    - echter Drei-Prozess-HTTP-Sync-Test
+    - Browser-zu-Petlib-Interoperabilitaetstest.
+
+[ ] Naechste fachliche Ausbaustufe:
+    - echten ZK-Ballot-Proof oder anonymen Membership-/Nullifier-Proof waehlen
+    - alternativ den erreichten Demo-Stand einfrieren und praesentieren.

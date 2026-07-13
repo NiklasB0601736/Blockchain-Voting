@@ -25,9 +25,14 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+import sys
 from petlib.bn import Bn
 
-from crypto_petlib_elgamal_tally import (
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from voting_system.crypto_petlib_elgamal_tally import (
     CommitteeKeyShares,
     CommitteeMemberShare,
     EncryptedBallot,
@@ -40,7 +45,7 @@ from crypto_petlib_elgamal_tally import (
 )
 
 
-DEFAULT_STATE_FILE = ".node-data/v2-demo-client-state.json"
+DEFAULT_STATE_FILE = str(PROJECT_ROOT / ".node-data" / "v2-demo-client-state.json")
 
 
 def sha256_hex(value: str) -> str:
@@ -48,7 +53,13 @@ def sha256_hex(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
-def request_json(api_url: str, path: str, method: str = "GET", payload: Any | None = None) -> dict:
+def request_json(
+    api_url: str,
+    path: str,
+    method: str = "GET",
+    payload: Any | None = None,
+    headers: dict[str, str] | None = None,
+) -> dict:
     """
     Send JSON to the v2 API using only the Python standard library.
 
@@ -58,12 +69,12 @@ def request_json(api_url: str, path: str, method: str = "GET", payload: Any | No
     """
     url = f"{api_url.rstrip('/')}{path}"
     data = None
-    headers = {}
+    request_headers = dict(headers or {})
     if payload is not None:
         data = json.dumps(payload).encode("utf-8")
-        headers["Content-Type"] = "application/json"
+        request_headers["Content-Type"] = "application/json"
 
-    request = urllib.request.Request(url, data=data, headers=headers, method=method)
+    request = urllib.request.Request(url, data=data, headers=request_headers, method=method)
     try:
         with urllib.request.urlopen(request, timeout=10) as response:
             return json.loads(response.read().decode("utf-8"))
@@ -72,43 +83,46 @@ def request_json(api_url: str, path: str, method: str = "GET", payload: Any | No
         raise RuntimeError(f"{method} {path} failed with HTTP {exc.code}: {body}") from exc
 
 
-def submit_transaction(api_url: str, tx_type: str, payload: dict) -> dict:
+def submit_transaction(api_url: str, tx_type: str, payload: dict, admin_key: str = "") -> dict:
     """Submit one v2 transaction to a node mempool."""
     return request_json(
         api_url,
         "/api/v2/transactions",
         method="POST",
         payload={"type": tx_type, "payload": payload},
+        headers={"X-Admin-Key": admin_key} if tx_type in {"create_election", "finalize_election"} else None,
     )
 
 
-def mine_block(api_url: str) -> dict:
+def mine_block(api_url: str, node_key: str) -> dict:
     """Ask a validator node to mine/sign the current mempool."""
-    return request_json(api_url, "/api/v2/blocks/mine", method="POST")
+    return request_json(api_url, "/api/v2/blocks/mine", method="POST", headers={"X-Node-Key": node_key})
 
 
 def save_committee(state_file: Path, committee: CommitteeKeyShares, election_id: str, options: list[str]) -> None:
     """
     Persist private committee shares for the demo committee client.
 
-    This file is intentionally local and private. It must never be put on the
-    public chain. In a real deployment, each committee member would hold only
-    their own share, not this combined demo file.
+    The manifest contains only public committee data. Every private member
+    share is written to a separate file beside it so the files can be handed to
+    different committee clients.
     """
     state_file.parent.mkdir(parents=True, exist_ok=True)
     state = {
         "election_id": election_id,
         "options": options,
         "committee_public_payload": committee.public_payload(),
-        "member_shares": [
-            {
-                "member_id": member.member_id,
-                "share": str(int(member.share)),
-            }
-            for member in committee.member_shares
-        ],
     }
     state_file.write_text(json.dumps(state, indent=2, sort_keys=True))
+    share_dir = state_file.with_name(f"{state_file.stem}-committee-shares")
+    share_dir.mkdir(parents=True, exist_ok=True)
+    for member in committee.member_shares:
+        share_path = share_dir / f"member-{member.member_id}.json"
+        share_path.write_text(json.dumps({
+            "election_id": election_id,
+            "member_id": member.member_id,
+            "share": str(int(member.share)),
+        }, indent=2, sort_keys=True))
 
 
 def load_committee(state_file: Path) -> tuple[CommitteeKeyShares, dict]:
@@ -123,13 +137,15 @@ def load_committee(state_file: Path) -> tuple[CommitteeKeyShares, dict]:
     public_payload = state["committee_public_payload"]
     public_key = PetlibPublicKey.from_payload(public_payload)
     public_shares = public_shares_from_payload(public_key, public_payload)
+    share_dir = state_file.with_name(f"{state_file.stem}-committee-shares")
+    private_payloads = [json.loads(path.read_text()) for path in sorted(share_dir.glob("member-*.json"))]
     member_shares = [
         CommitteeMemberShare(
             member_id=int(member["member_id"]),
             share=Bn.from_decimal(member["share"]),
             public_share=public_shares[int(member["member_id"])],
         )
-        for member in state["member_shares"]
+        for member in private_payloads
     ]
     committee = CommitteeKeyShares(
         public_key=public_key,
@@ -157,10 +173,10 @@ def create_election(args) -> None:
         "committee": committee.public_payload(),
     }
     save_committee(Path(args.state_file), committee, args.election_id, options)
-    response = submit_transaction(args.api_url, "create_election", payload)
+    response = submit_transaction(args.api_url, "create_election", payload, args.admin_key)
     print_json("create_election accepted", response)
     if args.mine:
-        print_json("block mined", mine_block(args.api_url))
+        print_json("block mined", mine_block(args.api_url, args.node_key))
 
 
 def register_voter(args) -> None:
@@ -173,7 +189,7 @@ def register_voter(args) -> None:
     response = submit_transaction(args.api_url, "register_voter", payload)
     print_json("register_voter accepted", response)
     if args.mine:
-        print_json("block mined", mine_block(args.api_url))
+        print_json("block mined", mine_block(args.api_url, args.node_key))
 
 
 def cast_vote(args) -> None:
@@ -184,24 +200,25 @@ def cast_vote(args) -> None:
         raise SystemExit(f"candidate_index must be between 0 and {option_count - 1}.")
 
     ballot = encrypt_candidate_vote(committee.public_key, args.candidate_index, option_count)
+    commitment = sha256_hex(args.voter)
     payload = {
         "election_id": state["election_id"],
-        "nullifier_hash": sha256_hex(f"{state['election_id']}:{args.voter}:nullifier"),
+        "nullifier_hash": sha256_hex(f"{state['election_id']}:{commitment}:nullifier"),
         "encrypted_ballot": ballot.to_chain_payload(),
         "eligibility_proof_placeholder": {
-            "type": "semaphore-placeholder",
+            "type": "deterministic-nullifier-demo-v2",
             "accepted": True,
             "commitment_hash": sha256_hex(args.voter),
         },
         "ballot_validity_proof_placeholder": {
-            "type": "one-hot-zk-placeholder",
+            "type": "local-one-hot-encryption-demo-v2",
             "accepted": True,
         },
     }
     response = submit_transaction(args.api_url, "cast_encrypted_vote", payload)
     print_json("cast_encrypted_vote accepted", response)
     if args.mine:
-        print_json("block mined", mine_block(args.api_url))
+        print_json("block mined", mine_block(args.api_url, args.node_key))
 
 
 def finalize_election(args) -> None:
@@ -211,10 +228,11 @@ def finalize_election(args) -> None:
         args.api_url,
         "finalize_election",
         {"election_id": state["election_id"]},
+        args.admin_key,
     )
     print_json("finalize_election accepted", response)
     if args.mine:
-        print_json("block mined", mine_block(args.api_url))
+        print_json("block mined", mine_block(args.api_url, args.node_key))
 
 
 def publish_tally(args) -> None:
@@ -249,7 +267,7 @@ def publish_tally(args) -> None:
     response = submit_transaction(args.api_url, "publish_tally_result", payload)
     print_json("publish_tally_result accepted", response)
     if args.mine:
-        print_json("block mined", mine_block(args.api_url))
+        print_json("block mined", mine_block(args.api_url, args.node_key))
 
 
 def run_full_demo(args) -> None:
@@ -285,6 +303,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Demo client for the v2 distributed voting chain.")
     parser.add_argument("--api-url", default="http://127.0.0.1:5001")
     parser.add_argument("--state-file", default=DEFAULT_STATE_FILE)
+    parser.add_argument("--admin-key", default="dev_admin_key")
+    parser.add_argument("--node-key", default="dev_node_key")
 
     subcommands = parser.add_subparsers(dest="command", required=True)
 

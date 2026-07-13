@@ -281,7 +281,7 @@
 <body>
     <header>
         <h1>V2 Distributed Voting Dashboard</h1>
-        <p class="subtitle">Live-Sicht auf das, was der aktuelle Code bereits kann: Node-Status, Mempool, signierte Bloeke, verschluesselte Ballots, Tally-Publish und oeffentliche Verifikation.</p>
+        <p class="subtitle">Node-Status, Mempool, Blocks, Elections, Tally und Verify.</p>
     </header>
 
     <main>
@@ -294,6 +294,14 @@
                 <label for="peerUrl">Peer URL</label>
                 <input id="peerUrl" value="http://127.0.0.1:5002">
             </div>
+            <div>
+                <label for="adminKey">Admin Key</label>
+                <input id="adminKey" type="password" value="dev_admin_key">
+            </div>
+            <div>
+                <label for="nodeKey">Node Key</label>
+                <input id="nodeKey" type="password" value="dev_node_key">
+            </div>
             <div class="button-row">
                 <button onclick="refreshAll()">Refresh</button>
                 <button class="secondary" onclick="addPeer()">Peer add</button>
@@ -302,35 +310,35 @@
             </div>
         </section>
 
-        <div id="dashboardFeedback" class="feedback muted">Bereit. Noch keine Dashboard-Aktion ausgefuehrt.</div>
+        <div id="dashboardFeedback" class="feedback muted">Bereit.</div>
 
         <section class="grid">
             <div class="panel span-12">
-                <h2>Aktueller Ablauf</h2>
+                <h2>Ablauf</h2>
                 <div class="flow">
                     <div class="flow-step">
                         <strong>1. Client</strong>
-                        <span class="muted">Petlib verschluesselt Vote off-chain.</span>
+                        <span class="muted">Vote wird verschluesselt.</span>
                     </div>
                     <div class="flow-step">
                         <strong>2. Transaction</strong>
-                        <span class="muted">encrypted_ballot + nullifier geht an Node.</span>
+                        <span class="muted">Ballot + Nullifier.</span>
                     </div>
                     <div class="flow-step">
                         <strong>3. Mempool</strong>
-                        <span class="muted">Node prueft Regeln vor Blockaufnahme.</span>
+                        <span class="muted">Node prueft Regeln.</span>
                     </div>
                     <div class="flow-step">
                         <strong>4. Block</strong>
-                        <span class="muted">Validator signiert mit Ed25519.</span>
+                        <span class="muted">Validator signiert.</span>
                     </div>
                     <div class="flow-step">
                         <strong>5. Sync</strong>
-                        <span class="muted">Peers uebernehmen laengere gueltige Chain.</span>
+                        <span class="muted">Peers holen Chain.</span>
                     </div>
                     <div class="flow-step">
                         <strong>6. Verify</strong>
-                        <span class="muted">Jeder prueft Tally und Proofs.</span>
+                        <span class="muted">Tally wird geprueft.</span>
                     </div>
                 </div>
             </div>
@@ -352,7 +360,7 @@ http://127.0.0.1:5003</textarea>
                     <div>
                         <label>Ablauf</label>
                         <div class="item muted">
-                            Mine auf der aktiven Node, fuege Peers hinzu oder nutze das Demo-Netzwerk-Skript, dann aktualisiere diese Sicht. Gleiche Chain-Length und gleicher Latest-Hash bedeuten: die Nodes sehen denselben Chain-Stand.
+                            Vergleicht Chain-Length und Latest-Hash der Nodes.
                         </div>
                         <div class="button-row" style="margin-top: 10px;">
                             <button class="secondary" onclick="refreshNodeMonitor()">Nodes vergleichen</button>
@@ -393,14 +401,14 @@ Charlie</textarea>
                         </div>
                         <label style="margin-top: 12px;">
                             <input id="createMine" type="checkbox" style="width: auto; min-height: auto;" checked>
-                            Direkt Block minen
+                            Nach Erstellung Block minen
                         </label>
                         <h3>Kandidaten-Indizes</h3>
                         <div id="candidatePreview" class="candidate-preview"></div>
                     </div>
                 </div>
                 <div class="button-row" style="margin-top: 12px;">
-                    <button onclick="createDemoElection()">Wahl als v2-Transaktion erstellen</button>
+                    <button onclick="createElection()">Wahl und Committee erzeugen</button>
                     <button class="secondary" onclick="fillCreateElectionRaw()">Als Raw JSON in Composer laden</button>
                 </div>
                 <div id="createElectionStatus" class="list" style="margin-top: 12px;"></div>
@@ -462,9 +470,11 @@ Charlie</textarea>
         </section>
     </main>
 
+    <script src="/assets/voting_crypto.bundle.js"></script>
     <script>
         let selectedElectionId = null;
         let lastChain = null;
+        let pendingCommitteeSetup = null;
 
         document.addEventListener('DOMContentLoaded', () => {
             renderCandidatePreview();
@@ -540,7 +550,7 @@ Charlie</textarea>
         }
 
         async function refreshAll() {
-            setFeedback('pending', 'Aktualisiere Node-Status, Chain, Mempool und Elections...');
+            setFeedback('pending', 'Lade Node-Daten...');
             try {
                 const [info, chain, mempool, elections] = await Promise.all([
                     requestJson('/api/v2/node/info'),
@@ -555,7 +565,7 @@ Charlie</textarea>
                 renderElections(elections);
                 showRaw({ info, chain, mempool, elections });
                 await refreshNodeMonitor(false);
-                setFeedback('success', `Aktualisiert: Chain ${info.chain_length} Block(s), Mempool ${info.mempool_size} Transaktion(en).`);
+                setFeedback('success', `Geladen: Chain ${info.chain_length}, Mempool ${info.mempool_size}.`);
             } catch (error) {
                 setFeedback('error', `Refresh fehlgeschlagen: ${error.message}`);
             }
@@ -577,7 +587,7 @@ Charlie</textarea>
                 return;
             }
             document.getElementById('peerUrl').value = peer;
-            setFeedback('success', `Peer-Feld gesetzt auf ${peer}. Klicke jetzt Peer add und danach Sync.`);
+                setFeedback('success', `Peer gesetzt: ${peer}`);
         }
 
         async function refreshNodeMonitor(showFeedback = true) {
@@ -634,7 +644,7 @@ Charlie</textarea>
             `;
 
             if (showFeedback) {
-                setFeedback(allSynced ? 'success' : 'pending', allSynced ? 'Nodes haben gleiche Chain-Length und gleichen Latest-Hash.' : 'Node-Vergleich geladen. Noch sind nicht mehrere Nodes synchron.');
+                setFeedback(allSynced ? 'success' : 'pending', allSynced ? 'Nodes synchron.' : 'Node-Vergleich geladen.');
             }
         }
 
@@ -709,7 +719,7 @@ Charlie</textarea>
                 setFeedback('error', 'Keine Wahl ausgewaehlt.');
                 return;
             }
-            setFeedback('pending', 'Lade Wahldetails, encrypted Ballots, Tally und Published Result...');
+            setFeedback('pending', 'Lade Wahldaten...');
             try {
                 const [election, ballots, tally, result] = await Promise.all([
                     requestJson(`/api/v2/elections/${selectedElectionId}`),
@@ -741,7 +751,7 @@ Charlie</textarea>
                         <button class="secondary" style="margin-top: 8px;" onclick='showRaw(${JSON.stringify(result)})'>Show result</button>
                     </div>
                 `;
-                setFeedback('success', `Wahldetails geladen: ${ballots.encrypted_ballots.length} encrypted Ballot(s).`);
+                setFeedback('success', `Wahl geladen: ${ballots.encrypted_ballots.length} Ballot(s).`);
             } catch (error) {
                 setFeedback('error', `Wahldetails konnten nicht geladen werden: ${error.message}`);
             }
@@ -753,7 +763,7 @@ Charlie</textarea>
                 setFeedback('error', 'Keine Wahl fuer Verify ausgewaehlt.');
                 return;
             }
-            setFeedback('pending', 'Pruefe Chain, Nullifier, encrypted Tally und published Result...');
+            setFeedback('pending', 'Pruefe Wahl...');
             try {
                 const verification = await requestJson(`/api/v2/elections/${selectedElectionId}/verify`);
                 const checks = verification.checks;
@@ -775,14 +785,17 @@ Charlie</textarea>
                     </div>
                 `).join('') + `
                     <div class="item">
-                        <strong>Overall</strong>
-                        <span class="${verification.valid ? 'ok' : 'bad'}">${verification.valid ? 'valid' : 'invalid'}</span>
+                        <strong>Ergebnisstatus</strong>
+                        <span class="${verification.complete ? 'ok' : verification.valid ? 'muted' : 'bad'}">${escapeHtml(verification.result_status)}</span>
                         ${verification.published_details && verification.published_details.published_plaintext_tally ? `<div>published plaintext tally: ${verification.published_details.published_plaintext_tally.join(', ')}</div>` : ''}
                         ${verification.published_details && verification.published_details.error ? `<div class="bad">${escapeHtml(verification.published_details.error)}</div>` : ''}
                         <button class="secondary" style="margin-top: 8px;" onclick='showRaw(${JSON.stringify(verification)})'>Show verify JSON</button>
                     </div>
                 `;
-                setFeedback(verification.valid ? 'success' : 'error', `Verify abgeschlossen: ${verification.valid ? 'valid' : 'invalid'}.`);
+                setFeedback(
+                    verification.complete ? 'success' : verification.valid ? 'pending' : 'error',
+                    verification.complete ? 'Ergebnis vollstaendig verifiziert.' : verification.valid ? 'Chain gueltig, Ergebnis noch nicht vollstaendig.' : 'Verifikation fehlgeschlagen.',
+                );
             } catch (error) {
                 setFeedback('error', `Verify fehlgeschlagen: ${error.message}`);
             }
@@ -790,44 +803,53 @@ Charlie</textarea>
 
         async function addPeer() {
             const peer = document.getElementById('peerUrl').value;
-            setFeedback('pending', `Fuege Peer hinzu: ${peer}`);
+            setFeedback('pending', `Speichere Peer: ${peer}`);
             try {
                 const result = await requestJson('/api/v2/peers', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Node-Key': document.getElementById('nodeKey').value,
+                    },
                     body: JSON.stringify({ url: peer }),
                 });
                 showRaw(result);
                 await refreshAll();
-                setFeedback('success', `Peer gespeichert: ${peer}`);
+                setFeedback('success', `Peer gespeichert.`);
             } catch (error) {
                 setFeedback('error', `Peer konnte nicht gespeichert werden: ${error.message}`);
             }
         }
 
         async function syncNode() {
-            setFeedback('pending', 'Synchronisiere mit Peers...');
+            setFeedback('pending', 'Sync...');
             try {
-                const result = await requestJson('/api/v2/sync', { method: 'POST' });
+                const result = await requestJson('/api/v2/sync', {
+                    method: 'POST',
+                    headers: { 'X-Node-Key': document.getElementById('nodeKey').value },
+                });
                 showRaw(result);
                 await refreshAll();
-                setFeedback('success', `Sync fertig: adopted=${result.adopted_chain}, imported=${result.imported_transactions}.`);
+                setFeedback('success', `Sync: adopted=${result.adopted_chain}, imported=${result.imported_transactions}.`);
             } catch (error) {
                 setFeedback('error', `Sync fehlgeschlagen: ${error.message}`);
             }
         }
 
         async function mineBlock() {
-            setFeedback('pending', 'Mempool wird als signierter Block gespeichert...');
+            setFeedback('pending', 'Mine Block...');
             try {
-                const result = await requestJson('/api/v2/blocks/mine', { method: 'POST' });
+                const result = await requestJson('/api/v2/blocks/mine', {
+                    method: 'POST',
+                    headers: { 'X-Node-Key': document.getElementById('nodeKey').value },
+                });
                 showRaw(result);
                 await refreshAll();
                 if (selectedElectionId) {
                     await loadElectionData();
                     await verifySelectedElection();
                 }
-                setFeedback('success', `Block #${result.block.index} wurde erstellt.`);
+                setFeedback('success', `Block #${result.block.index} erstellt.`);
             } catch (error) {
                 setFeedback('error', `Block konnte nicht erstellt werden: ${error.message}`);
             }
@@ -835,57 +857,96 @@ Charlie</textarea>
 
         async function submitTransaction() {
             const txType = document.getElementById('txType').value;
-            setFeedback('pending', `Sende rohe ${txType} Transaktion in den Mempool...`);
+            setFeedback('pending', `Sende ${txType}...`);
             try {
                 const payload = JSON.parse(document.getElementById('txPayload').value);
                 const result = await requestJson('/api/v2/transactions', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Admin-Key': document.getElementById('adminKey').value,
+                    },
                     body: JSON.stringify({ type: txType, payload }),
                 });
                 showRaw(result);
                 await refreshAll();
-                setFeedback('success', `${txType} wurde in den Mempool gelegt.`);
+                setFeedback('success', `${txType} im Mempool.`);
             } catch (error) {
                 setFeedback('error', `Transaktion fehlgeschlagen: ${error.message}`);
             }
         }
 
-        async function createDemoElection() {
+        async function createElection() {
             const status = document.getElementById('createElectionStatus');
-            const payload = {
-                title: document.getElementById('createTitle').value,
-                candidates: parseCandidates(),
-                duration_minutes: Number(document.getElementById('createDuration').value),
-                member_count: Number(document.getElementById('createMemberCount').value),
-                threshold: Number(document.getElementById('createThreshold').value),
-                mine: document.getElementById('createMine').checked,
-            };
-            setFeedback('pending', 'Erzeuge Committee, create_election Transaktion und optional Block...');
+            const options = parseCandidates();
+            const memberCount = Number(document.getElementById('createMemberCount').value);
+            const threshold = Number(document.getElementById('createThreshold').value);
+            const electionId = crypto.randomUUID();
+            const now = new Date();
+            const end = new Date(now.getTime() + Number(document.getElementById('createDuration').value) * 60 * 1000);
+            setFeedback('pending', 'Erzeuge Committee lokal und sende Wahl...');
             try {
-                const result = await requestJson('/api/v2/demo/create-election', {
+                pendingCommitteeSetup = VotingCrypto.generateCommittee(electionId, memberCount, threshold);
+                const payload = {
+                    election_id: electionId,
+                    title: document.getElementById('createTitle').value,
+                    options,
+                    start_time: now.toISOString(),
+                    end_time: end.toISOString(),
+                    committee: pendingCommitteeSetup.public_payload,
+                };
+                const result = await requestJson('/api/v2/transactions', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload),
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Admin-Key': document.getElementById('adminKey').value,
+                    },
+                    body: JSON.stringify({ type: 'create_election', payload }),
                 });
-                selectedElectionId = result.election_id;
+                selectedElectionId = electionId;
+                let block = null;
+                if (document.getElementById('createMine').checked) {
+                    block = (await requestJson('/api/v2/blocks/mine', {
+                        method: 'POST',
+                        headers: { 'X-Node-Key': document.getElementById('nodeKey').value },
+                    })).block;
+                }
                 status.innerHTML = `
                     <div class="item">
                         <strong>Wahl erstellt</strong>
-                        <div class="mono">${escapeHtml(result.election_id)}</div>
+                        <div class="mono">${escapeHtml(electionId)}</div>
                         <div>Transaktion: ${escapeHtml(shortHash(result.transaction.tx_id))}</div>
-                        <div>Private Demo-Shares: <span class="mono">${escapeHtml(result.private_committee_state_path)}</span></div>
+                        <div>${memberCount} private Shares wurden nur im Browser erzeugt.</div>
+                        <div class="button-row" style="margin-top: 8px;">
+                            ${pendingCommitteeSetup.member_files.map((share, index) => `
+                                <button class="secondary" onclick="downloadCommitteeShare(${index})">Share ${share.member_id}</button>
+                            `).join('')}
+                        </div>
                     </div>
                 `;
-                showRaw(result);
+                showRaw({ transaction: result.transaction, block, committee_public_payload: payload.committee });
                 await refreshAll();
-                await loadElectionData();
-                await verifySelectedElection();
-                setFeedback('success', result.block ? 'Wahl erstellt und direkt in einen Block geschrieben.' : 'Wahl erstellt und im Mempool abgelegt.');
+                if (block) {
+                    await loadElectionData();
+                    await verifySelectedElection();
+                }
+                setFeedback('success', block ? 'Wahl im Block. Shares jetzt einzeln speichern.' : 'Wahl im Mempool. Shares jetzt einzeln speichern.');
             } catch (error) {
+                pendingCommitteeSetup = null;
                 status.innerHTML = `<div class="item bad">${escapeHtml(error.message)}</div>`;
                 setFeedback('error', `Wahl konnte nicht erstellt werden: ${error.message}`);
             }
+        }
+
+        function downloadCommitteeShare(index) {
+            if (!pendingCommitteeSetup || !pendingCommitteeSetup.member_files[index]) return;
+            const share = pendingCommitteeSetup.member_files[index];
+            const blob = new Blob([JSON.stringify(share, null, 2)], { type: 'application/json' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `${share.election_id}-committee-member-${share.member_id}.json`;
+            link.click();
+            URL.revokeObjectURL(link.href);
         }
 
         function fillCreateElectionRaw() {

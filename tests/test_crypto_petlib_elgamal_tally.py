@@ -2,7 +2,7 @@ import unittest
 
 from petlib.bn import Bn
 
-from crypto_petlib_elgamal_tally import (
+from voting_system.crypto_petlib_elgamal_tally import (
     Ciphertext,
     PetlibPublicKey,
     aggregate_encrypted_ballots,

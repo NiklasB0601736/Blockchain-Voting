@@ -24,7 +24,7 @@
 
   <rect class="bg" width="1260" height="820"/>
   <text class="title" x="48" y="52">V2 Demo-Ablauf: verschluesselte Stimme bis oeffentliches Verify</text>
-  <text class="txt" x="48" y="80">Klarstimmen bleiben im Demo-Client sichtbar nur zur Erklaerung. Auf der Chain landen encrypted_ballot, nullifier_hash und spaeter Tally-Proofs.</text>
+  <text class="txt" x="48" y="80">Secret und Klarwahl bleiben im Browser. Auf der Chain landen encrypted_ballot, nullifier_hash und spaeter Tally-Proofs.</text>
 
   <rect class="client" x="55" y="125" width="245" height="130" rx="8"/>
   <text class="head" x="80" y="158">1. Voter Client</text>
@@ -33,10 +33,10 @@
   <text class="small" x="80" y="232">nur lokale Vorschau</text>
 
   <rect class="client" x="355" y="125" width="285" height="130" rx="8"/>
-  <text class="head" x="380" y="158">2. Petlib verschluesselt</text>
+  <text class="head" x="380" y="158">2. Browser verschluesselt</text>
   <text class="txt" x="380" y="184">EC-ElGamal pro Kandidat</text>
   <text class="mono" x="380" y="210">[Enc(0), Enc(1), Enc(0)]</text>
-  <text class="small" x="380" y="232">Ciphertexts sind probabilistisch</text>
+  <text class="small" x="380" y="232">Noble P-256, Petlib-kompatibel</text>
 
   <rect class="chain" x="705" y="125" width="245" height="130" rx="8"/>
   <text class="head" x="730" y="158">3. Mempool</text>
@@ -61,7 +61,7 @@
   <text class="txt" x="130" y="579">Threshold pruefen, z.B. 3 von 5</text>
   <text class="txt" x="130" y="602">2 Shares: keine Entschluesselung</text>
   <text class="txt" x="130" y="625">3 Shares: Tally kann published werden</text>
-  <text class="small" x="130" y="648">Private Shares bleiben lokal</text>
+  <text class="small" x="130" y="648">einzelne private Share-Dateien</text>
 
   <rect class="committee" x="490" y="520" width="315" height="150" rx="8"/>
   <text class="head" x="515" y="553">7. Publish Tally Result</text>

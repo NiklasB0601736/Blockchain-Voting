@@ -33,26 +33,27 @@
   <text class="small" x="742" y="205">Committee-Tally publishen, Verify ansehen</text>
 
   <rect class="band done" x="60" y="270" width="1060" height="130" rx="8"/>
-  <text class="head" x="90" y="309">Level 3 - Petlib-Wahlkryptografie</text>
-  <text class="txt" x="90" y="337">EC-ElGamal, One-Hot-Ballots, homomorphe Aggregation, Threshold Decryption, Chaum-Pedersen-Proofs</text>
+  <text class="head" x="90" y="309">Level 3 - Noble/Petlib-Wahlkryptografie</text>
+  <text class="txt" x="90" y="337">lokale Browser-Verschluesselung, One-Hot-Ballots, homomorphe Aggregation,</text>
+  <text class="txt" x="90" y="352">Threshold Decryption, Chaum-Pedersen-Proofs</text>
   <rect class="done" x="720" y="300" width="350" height="72" rx="6"/>
   <text class="tag" x="742" y="324">IMPLEMENTIERT ALS PROTOTYP</text>
-  <text class="small" x="742" y="345">Private Shares bleiben lokal</text>
+  <text class="small" x="742" y="345">Private Shares als einzelne lokale Dateien</text>
   <text class="small" x="742" y="363">Nodes verifizieren Result ohne Private Shares</text>
 
   <rect class="band done" x="60" y="430" width="1060" height="130" rx="8"/>
   <text class="head" x="90" y="469">Level 2 - Demo-Eligibility und Double Voting</text>
-  <text class="txt" x="90" y="497">Registrierung per Demo-Commitment, Vote per nullifier_hash, Placeholder-Felder fuer Eligibility und Ballot Validity</text>
+  <text class="txt" x="90" y="497">Registrierung per Demo-Commitment, daran gebundener nullifier_hash</text>
+  <text class="txt" x="90" y="512">Placeholder-Felder fuer Eligibility und Ballot Validity</text>
   <rect class="done" x="720" y="460" width="350" height="72" rx="6"/>
   <text class="tag" x="742" y="484">DEMO-FUNKTION IMPLEMENTIERT</text>
   <text class="small" x="742" y="505">Double Voting wird abgelehnt</text>
-  <text class="small" x="742" y="523">Echte Semaphore-/ZK-Proofs offen</text>
+  <text class="small" x="742" y="523">anonyme Semaphore-/ZK-Bindung offen</text>
 
   <rect class="band done" x="60" y="590" width="510" height="105" rx="8"/>
   <text class="head" x="90" y="628">Level 1 - Eigene Python-Chain</text>
   <text class="txt" x="90" y="656">PoA, Ed25519, Mempool, Blocks, JSON-Persistenz, Peers, Sync</text>
   <text class="small" x="90" y="678">Lokale Node 1/2/3 Demo mit gleichem Latest-Hash nach Sync</text>
-
   <rect class="band open" x="610" y="590" width="510" height="105" rx="8"/>
   <text class="head" x="640" y="628">Produktionsluecken</text>
   <text class="txt" x="640" y="656">Semaphore, Ballot-ZK-Proofs, Metadaten-Schutz, Audits, Rechtsrahmen</text>

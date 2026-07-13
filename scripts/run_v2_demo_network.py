@@ -27,10 +27,14 @@ import sys
 import time
 from pathlib import Path
 
-from distributed_blockchain import generate_validator_keypair
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from voting_system.distributed_blockchain import generate_validator_keypair
 
 
-DEFAULT_DATA_ROOT = Path(".node-data") / "v2-demo-network"
+DEFAULT_DATA_ROOT = PROJECT_ROOT / ".node-data" / "v2-demo-network"
 CONFIG_FILE = "network-config.json"
 
 
@@ -42,8 +46,7 @@ def safe_reset_path(path: Path) -> bool:
     break a presentation. This guard prevents an accidental custom path from
     deleting unrelated project files.
     """
-    project_root = Path.cwd().resolve()
-    allowed_root = (project_root / ".node-data").resolve()
+    allowed_root = (PROJECT_ROOT / ".node-data").resolve()
     try:
         path.resolve().relative_to(allowed_root)
         return True
@@ -88,6 +91,7 @@ def build_node_env(config: dict, node_config: dict, data_root: Path) -> dict:
     rules when they sync or receive blocks.
     """
     env = os.environ.copy()
+    existing_pythonpath = env.get("PYTHONPATH", "")
     node_id = node_config["node_id"]
     node_url_by_id = {
         item["node_id"]: f"http://127.0.0.1:{item['port']}"
@@ -105,7 +109,10 @@ def build_node_env(config: dict, node_config: dict, data_root: Path) -> dict:
             "DATA_DIR": str(data_root / node_id),
             "VALIDATORS_JSON": json.dumps(config["validators"]),
             "PEERS": ",".join(peer_urls),
+            "V2_ADMIN_KEY": "dev_admin_key",
+            "V2_NODE_KEY": "dev_node_key",
             "PYTHONUNBUFFERED": "1",
+            "PYTHONPATH": str(PROJECT_ROOT) if not existing_pythonpath else f"{PROJECT_ROOT}{os.pathsep}{existing_pythonpath}",
         }
     )
     if node_config["validator"]:
@@ -129,7 +136,7 @@ def start_node(config: dict, node_config: dict, data_root: Path) -> subprocess.P
     print(f"  DATA_DIR={env['DATA_DIR']}")
     print(f"  PEERS={env['PEERS']}")
     print(f"  VALIDATOR={'yes' if node_config['validator'] else 'no'}")
-    return subprocess.Popen([sys.executable, "blockchainV1.py"], env=env)
+    return subprocess.Popen([sys.executable, "-m", "voting_system.blockchain_v1"], cwd=PROJECT_ROOT, env=env)
 
 
 def terminate_processes(processes: list[subprocess.Popen]) -> None:

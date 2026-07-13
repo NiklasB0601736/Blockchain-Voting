@@ -1,322 +1,172 @@
 # Blockchain-basiertes Wahlsystem
 
-Praesentationsfaehiger Demo-Prototyp fuer ein transparentes, verteilbares
-Wahlsystem. Der aktuelle Stand kombiniert eine eigene Python-Blockchain,
-mehrere lokale Nodes, verschluesselte Petlib-Ballots, Nullifier gegen Double
-Voting, homomorphe Auszaehlung und eine Threshold-Entschluesselung durch ein
-Wahlkomitee.
+Praesentationsfaehiger Lernprototyp fuer ein verteiltes und oeffentlich
+pruefbares Wahlsystem. Der aktuelle V2-Weg kombiniert eine eigene
+Python-Blockchain, drei getrennte Nodes, lokale Browser-Verschluesselung,
+homomorphe Auszaehlung und 3-aus-5-Threshold-Decryption.
 
-Wichtig: Das Projekt ist bewusst ein Lern- und Demo-Prototyp, kein
-produktives E-Voting-System. Es zeigt den technischen Ablauf und macht die
-naechsten Sicherheitsbausteine sichtbar. Echte Semaphore-Proofs, echte
-Ballot-ZK-Proofs, produktive Schluesselverwaltung, Metadaten-Schutz, Audits und
-rechtliche Zertifizierung sind nicht implementiert.
+Das Projekt ist kein produktives E-Voting-System. Es demonstriert den
+technischen Datenfluss und benennt die fehlenden Sicherheitsbausteine offen.
 
-## Aktueller Stand
+## Was der Prototyp zeigt
 
-Der Prototyp besteht aus zwei Ebenen:
+- getrennte Validator- und Observer-Nodes mit eigenen `DATA_DIR`s
+- Mempool, signierte PoA-Blocks, Peer-Sync und JSON-Persistenz
+- Wahlverwaltung mit Kandidaten-Indizes und Committee-Public-Key
+- lokale P-256-EC-ElGamal-Verschluesselung im Voter-Browser
+- keine Namen, Voter-Secrets oder Klarstimmen in Node-Requests und Chain
+- deterministisch an ein registriertes Commitment gebundene Demo-Nullifier
+- homomorphe Addition aller encrypted Ballots
+- private Committee-Shares als einzelne lokale JSON-Dateien
+- clientseitige Partial Decryptions und Chaum-Pedersen-Proofs
+- Petlib-Verifikation des veroeffentlichten Ergebnisses auf jeder Node
+- getrennte Oberflaechen fuer Node, Voter und Committee
 
-1. `blockchainV1.py` bleibt als einfache lokale Lern-Demo erhalten.
-2. Die neue v2-Chain unter `/api/v2` ist der eigentliche
-   praesentationsfaehige Stand.
+Der aktuelle Nullifier ist absichtlich nur eine robuste Demo-Loesung: Seine
+Bindung an das oeffentliche Commitment verhindert frei erfundene Nullifier,
+ist aber nicht anonym. Ein produktives System braucht dafuer einen echten
+ZK-Membership-/Nullifier-Proof, zum Beispiel nach dem Semaphore-Prinzip.
 
-Die v2-Demo kann aktuell:
+## Datenfluss
 
-- lokale Node 1/2/3 mit getrennten `DATA_DIR`s starten
-- Blocks per Proof-of-Authority und Ed25519 signieren
-- valide Transaktionen zuerst im Mempool anzeigen
-- nach Mining committed Blocks anzeigen
-- Nodes per Peer-/Sync-Endpunkt synchronisieren
-- Wahlen mit Kandidaten-Indizes erstellen
-- Voter getrennt vom Node Dashboard registrieren
-- Stimmen als verschluesselte Petlib-Ballots speichern
-- Double Voting per `nullifier_hash` ablehnen
-- keine Namen und keine Klarstimmen auf der v2-Chain speichern
-- encrypted Ballots homomorph aggregieren
-- Threshold-Auszaehlung durch ein Committee veroeffentlichen
-- Partial Decryptions und Chaum-Pedersen-Proofs oeffentlich pruefen
-- im Dashboard zeigen, ob Chain, Nullifier, encrypted Tally, Proofs und
-  Plaintext Result zusammenpassen
+1. Das Dashboard erzeugt Committee-Keymaterial lokal im Browser.
+2. Nur Public Key und Public Shares gehen in `create_election` auf die Chain.
+3. Jeder private Member-Share wird als eigene Datei gespeichert.
+4. Der Voter-Browser bildet One-Hot, Commitment und Nullifier lokal.
+5. Die Node erhaelt nur `encrypted_ballot`, Hashes und Proof-Platzhalter.
+6. Der Validator committed gueltige Mempool-Transaktionen in einen Block.
+7. Committee-Mitglieder laden mindestens den Threshold einzelner Share-Dateien.
+8. Der Committee-Browser aggregiert, entschluesselt den Tally und erzeugt Proofs.
+9. Jede Node prueft Tally, Partial Decryptions und Klarergebnis mit Petlib.
 
-## Grenzen des Prototyps
+## Rollen
 
-Diese Punkte sind bewusst nicht fertig implementiert und gehoeren in den
-Ausblick der Praesentation:
+- **Admin:** darf `create_election` und `finalize_election` einreichen.
+- **Node Operator:** darf Peers aendern, synchronisieren und Blocks minen.
+- **Voter:** registriert ein Demo-Commitment und sendet encrypted Ballots.
+- **Committee:** publiziert nur einen kryptografisch gueltigen Threshold-Tally.
+- **Observer:** liest Chain-Daten und verifiziert das Ergebnis ohne private Shares.
 
-- echte Semaphore-/Membership-Proofs fuer anonyme Wahlberechtigung
-- echte ZK-Proofs, dass ein encrypted Ballot genau eine gueltige Option enthaelt
-- produktive, getrennte Ausgabe und Speicherung von Committee-Shares
-- Schutz gegen Netzwerk-Metadaten wie IP-Adresse, Timing und Reihenfolge
-- robuster produktiver Konsens statt einfacher PoA-Demo
-- echte Auditierbarkeit, formale Sicherheitsanalyse und rechtliche Zulassung
-- Ethereum-/Solana-/Smart-Contract-Deployment
+Die V2-API verwendet fuer die beiden privilegierten Rollen die Header
+`X-Admin-Key` und `X-Node-Key`. Defaults der lokalen Demo sind
+`dev_admin_key` und `dev_node_key`.
 
-## Architektur-Grafiken
+## Projektstruktur
 
-### Schichtenmodell
+```text
+voting_system/     FastAPI, Chain-Core und Petlib-Kryptografie
+web/               Dashboard, Voter, Committee und Browser-Crypto
+scripts/           Node Controller, Demo-Netzwerk und CLI-Client
+tests/             Python-, HTTP-Prozess- und Interoperabilitaetstests
+tests_js/          Browser-Kryptografie-Tests
+docs/              Anleitungen und Architekturdiagramme
+archive/            nicht aktiver Ethereum-/Hardhat-Entwurf
+blockchainV1.py    kompatibler Start-Wrapper
+```
 
-![Zero-Trust Voting Schichtenmodell](docs/diagrams/layered-architecture.svg)
-
-### Verschluesselte Auszaehlung
-
-![Encrypted Tally Flow](docs/diagrams/encrypted-tally-flow.svg)
-
-### Projektdateien
-
-- `blockchainV1.py` - Python Backend mit Blockchain-Core und FastAPI
-- `distributed_blockchain.py` - v2 Chain-Core mit PoA-Nodes, Mempool,
-  JSON-Persistenz und verschluesselten Vote-Transaktionen
-- `frontend.html` - Web-Interface fuer die FastAPI
-- `frontend_v2.html` - Live-Dashboard fuer v2 Nodes, Mempool, Chain,
-  verschluesselte Ballots und Verify-Status
-- `voter_client.html` - getrennte Voter-Ansicht fuer Registrierung und
-  verschluesselte Stimmabgabe
-- `committee_client.html` - getrennte Committee-Ansicht fuer Threshold-Tally,
-  Ergebnis-Publish und Proof-Verifikation
-- `v2_demo_client.py` - separates Demo-Programm fuer Voter-/Committee-Aktionen
-- `v2_node_launcher.py` - GUI-Launcher fuer eine einzelne lokale Node
-- `run_v2_demo_network.py` - startet Node 1/2/3 als lokale Multi-Node-Demo
-- `test_voting.py` - Demo-Testlauf fuer die Kernlogik
-- `contracts/VotingContract.sol` - Solidity-Entwurf fuer On-Chain Voting
-- `hardhat.config.js` - Hardhat-Konfiguration
-- `QUICK_START.txt` - kurze Bedienungsanleitung
+Der aktive Prototyp ist die V2-Chain in
+`voting_system/distributed_blockchain.py`. Die alte V1-Lerndemo bleibt in
+`voting_system/blockchain_v1.py` erhalten.
 
 ## Installation
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+.venv/bin/pip3 install -r requirements.txt
 ```
 
-Falls `petlib` auf macOS keine OpenSSL-Header findet:
+Das fertige Browser-Crypto-Bundle liegt unter
+`web/assets/voting_crypto.bundle.js`. Nur fuer Aenderungen daran werden Node.js
+und npm benoetigt:
 
 ```bash
-CPPFLAGS=-I/opt/homebrew/opt/openssl@3/include LDFLAGS=-L/opt/homebrew/opt/openssl@3/lib pip install -r requirements.txt
+npm install
+npm run build:web-crypto
 ```
 
 ## Start
 
+Empfohlen fuer die Praesentation:
+
 ```bash
-ADMIN_KEY=dev_admin_key python3 blockchainV1.py
+.venv/bin/python scripts/v2_node_launcher.py
 ```
 
-Die API laeuft danach unter:
+Im Controller `3-Node-Demo starten` waehlen. Danach:
 
 ```text
-http://127.0.0.1:5000
+Dashboard: http://127.0.0.1:5001/dashboard
+Voter:     http://127.0.0.1:5001/voter
+Committee: http://127.0.0.1:5001/committee
+Node 2:    http://127.0.0.1:5002/dashboard
+Node 3:    http://127.0.0.1:5003/dashboard
+API Docs:  http://127.0.0.1:5001/docs
 ```
 
-Die interaktive FastAPI-Dokumentation ist erreichbar unter:
-
-```text
-http://127.0.0.1:5000/docs
-```
-
-Falls Port 5000 auf deinem Mac schon belegt ist:
+Alternativ direkt:
 
 ```bash
-PORT=5001 ADMIN_KEY=dev_admin_key python3 blockchainV1.py
+.venv/bin/python scripts/run_v2_demo_network.py --reset
 ```
 
-Dann im Frontend die API URL auf `http://127.0.0.1:5001` setzen.
-
-Das Frontend kann direkt im Browser geoeffnet werden:
+Eine einzelne Node:
 
 ```bash
-open frontend.html
-```
-
-Wenn kein `ADMIN_KEY` gesetzt ist, verwendet die Demo den lokalen Default
-`your_secret_admin_key_here`.
-
-## V2: Verteilte Python-Chain
-
-Die neue v2-Chain laeuft neben der bisherigen Demo unter `/api/v2`. Sie nutzt
-Proof-of-Authority mit Ed25519-Blocksignaturen, einen Mempool, JSON-Persistenz
-pro Node und speichert verschluesselte Petlib-Ballots statt Klarstimmen.
-
-Validator-Key fuer lokale Tests erzeugen:
-
-```bash
-python3 - <<'PY'
-from distributed_blockchain import generate_validator_keypair
-print(generate_validator_keypair())
-PY
-```
-
-Eine lokale Validator-Node starten:
-
-```bash
-NODE_ID=node1 \
-NODE_PRIVATE_KEY=<private_key_hex> \
-VALIDATORS_JSON='{"node1":"<public_key_hex>"}' \
-DATA_DIR=.node-data/node1 \
 PORT=5001 \
-ADMIN_KEY=dev_admin_key \
-python3 blockchainV1.py
+V2_ADMIN_KEY=dev_admin_key \
+V2_NODE_KEY=dev_node_key \
+.venv/bin/python blockchainV1.py
 ```
 
-Weitere Nodes bekommen ein eigenes `NODE_ID`, `DATA_DIR` und optional `PEERS`,
-z.B. `PEERS=http://127.0.0.1:5001`. Die wichtigsten v2-Endpunkte:
+## Bedienung
 
-```http
-GET  /api/v2/node/info
-GET  /api/v2/chain
-GET  /api/v2/mempool
-POST /api/v2/transactions
-POST /api/v2/blocks/mine
-POST /api/v2/peers
-POST /api/v2/sync
-GET  /api/v2/elections/{election_id}/verify
-```
+1. Im Dashboard Wahl erstellen und jeden Committee-Share einzeln speichern.
+2. Im Voter Client Wahl laden, Secret eingeben und registrieren.
+3. Dashboard: Mempool als Block minen.
+4. Voter Client: Kandidat waehlen und encrypted Vote senden.
+5. Dashboard: Vote-Block minen und Observer-Nodes synchronisieren.
+6. Dashboard: `finalize_election` mit Admin-Key senden und minen.
+7. Committee Client: mindestens Threshold Share-Dateien laden und Tally senden.
+8. Dashboard: Tally-Block minen und `Verify` ausfuehren.
 
-Grenze des Prototyps: Semaphore und echte Ballot-ZK-Proofs sind noch
-Platzhalter-Felder. Die Chain prueft aber bereits Nullifier, verschluesselte
-Ballot-Formate, Blocksignaturen und veroeffentlichte Threshold-Tally-Proofs.
-
-### V2 visuell demonstrieren
-
-Einfachster Start per Launcher-GUI:
-
-```bash
-python3 v2_node_launcher.py
-```
-
-Im Launcher sind Node-ID, Port, Data-Dir, Validator-Key, Validator-Liste und
-Peers sichtbar editierbar. Der Button `Node starten` startet die API mit diesen
-Werten, ohne dass der lange Env-Aufruf per Hand getippt werden muss.
-
-Wenn du einen neuen Validator-Key erzeugst, aber dasselbe `DATA_DIR`
-weiterverwendest, koennen alte Bloeke nicht mehr zur neuen Signatur passen. Der
-Launcher erkennt das und bietet an, den lokalen Demo-State unter `.node-data`
-zurueckzusetzen.
-
-Dashboard oeffnen:
-
-```text
-http://127.0.0.1:5001/dashboard
-```
-
-Das Dashboard zeigt Node-Status, Mempool, neuesten Block, committed Elections,
-encrypted Ballots, encrypted Tally, Published Result, Multi-Node-Vergleich und
-Verify-Checks.
-
-Getrennte Voter-Ansicht oeffnen:
-
-```text
-http://127.0.0.1:5001/voter
-```
-
-Der Voter Client zeigt Wahl, Kandidaten-Indizes, lokales Demo-Secret,
-One-Hot-Vorschau, Nullifier und die verschluesselte Vote-Transaktion getrennt
-von der Node-Ansicht.
-
-Getrennte Committee-Ansicht oeffnen:
-
-```text
-http://127.0.0.1:5001/committee
-```
-
-Der Committee Client zeigt encrypted Ballots, lokale Demo-Committee-Shares,
-Threshold-Status, encrypted Tally, plaintext Tally und publisht
-`publish_tally_result` mit Partial Decryptions und Proofs auf die Chain.
-
-Lokales Drei-Node-Netzwerk fuer die Praesentation starten:
-
-```bash
-python3 run_v2_demo_network.py --reset
-```
-
-Das Skript startet:
-
-```text
-node1: http://127.0.0.1:5001  Validator, kann minen
-node2: http://127.0.0.1:5002  Observer, kann syncen
-node3: http://127.0.0.1:5003  Observer, kann syncen
-```
-
-Jede Node nutzt ein eigenes `DATA_DIR` unter `.node-data/v2-demo-network`.
-`--reset` loescht nur diesen Demo-Netzwerk-State, damit alte Chains oder alte
-Validator-Keys die Vorfuehrung nicht stoeren.
-
-Ein kompletter Demo-Ablauf gegen eine laufende Validator-Node:
-
-```bash
-python3 v2_demo_client.py --api-url http://127.0.0.1:5001 full-demo
-```
-
-Der Demo-Client erzeugt lokal ein Committee, legt eine Wahl an, registriert
-Demo-Waehler, verschluesselt Stimmen, mined Bloeke, finalisiert die Wahl und
-publisht das Threshold-Tally. Die private Committee-State-Datei bleibt lokal
-unter `.node-data/v2-demo-client-state.json`.
-
-Die Rollen koennen auch einzeln gezeigt werden:
-
-```bash
-python3 v2_demo_client.py --api-url http://127.0.0.1:5001 create-election --mine
-python3 v2_demo_client.py --api-url http://127.0.0.1:5001 register --voter alice --mine
-python3 v2_demo_client.py --api-url http://127.0.0.1:5001 vote --voter alice --candidate-index 0 --mine
-python3 v2_demo_client.py --api-url http://127.0.0.1:5001 finalize --mine
-python3 v2_demo_client.py --api-url http://127.0.0.1:5001 publish-tally --members 1,2,3 --mine
-```
+`result_status=verified` und `complete=true` bedeuten, dass ein publiziertes
+Ergebnis vollstaendig gegen die committed encrypted Ballots geprueft wurde.
+Ein offener Wahlzustand kann eine gueltige Chain haben, ist aber noch kein
+verifiziertes Endergebnis.
 
 ## Tests
 
 ```bash
-python3 test_voting.py
+.venv/bin/python -m unittest discover -s tests
+npm run test:web-crypto
 ```
 
-Fuer die automatisierten Regressionstests:
+Die Tests umfassen unter anderem:
 
-```bash
-python3 -m unittest test_crypto_tally.py test_crypto_elgamal_tally.py test_crypto_petlib_elgamal_tally.py test_distributed_blockchain.py test_voting.py
-```
+- Petlib EC-ElGamal und Threshold-Proofs
+- Browser-Noble-Payloads gegen Python/Petlib
+- Nullifier-Bindung und Double-Voting-Ablehnung
+- Admin-/Node-Rollenkeys
+- drei echte FastAPI-Prozesse mit HTTP-Sync
+- Auslieferung aller drei GUIs und des Crypto-Bundles
 
-## API
+## Bewusste Grenzen
 
-### Oeffentlich
+- keine echten Semaphore-/Membership-Proofs
+- kein ZK-Ballot-Proof fuer genau eine verschluesselte Auswahl
+- Demo-Registrierung ist keine reale Ausgabe von Wahlberechtigungen
+- private Share-Dateien haben noch keinen Hardware-/Passwortschutz
+- einfacher PoA-Konsens und manuell angestossener Peer-Sync
+- keine BFT-Fork-Aufloesung, Datenbank oder parallele Transaktionssperren
+- kein Schutz gegen IP-, Timing- und Reihenfolge-Metadaten
+- keine formale Sicherheitsanalyse, Audits oder rechtliche Zulassung
 
-```http
-GET /api/elections
-GET /api/elections/{election_id}
-GET /api/results/{election_id}
-GET /api/verify/{election_id}
-GET /api/blockchain/chain
-GET /api/blockchain/valid
-GET /api/health
-```
+Der alte Ethereum-/Semaphore-Entwurf liegt nur noch als Forschungsreferenz
+unter `archive/ethereum-experiment/` und ist kein aktiver Buildpfad.
 
-### Admin
+## Grafiken
 
-Admin-Endpunkte erwarten den Header `X-Admin-Key`.
+![Schichtenmodell](docs/diagrams/layered-architecture.svg)
 
-```http
-POST /api/elections
-POST /api/elections/{election_id}/finalize
-```
-
-### Benutzer
-
-```http
-POST /api/voters/register
-POST /api/vote
-```
-
-## Beispielablauf
-
-1. Wahl erstellen.
-2. Wahl-ID in Registrierung, Abstimmung und Verifikation uebernehmen.
-3. Waehler-Commitment erzeugen oder eintragen.
-4. Waehler registrieren.
-5. Stimme abgeben.
-6. Wahl finalisieren.
-7. Ergebnisse und Integritaet oeffentlich abrufen.
-
-## Naechste Ausbaustufe
-
-- Echte Semaphore-Proof-Erzeugung und Verifikation anbinden
-- Solidity Contract kompilierbar testen und Deployment-Script ergaenzen
-- Produktivere Persistenz/DB statt JSON-Dateien
-- Echte Ballot-ZK-Proofs statt Platzhalter-Felder
-- LAN-/Internet-Demo mit Firewall-/Tunnel-Setup aus `LAN_NODE_TEST_PLAN.txt`
+![Encrypted Tally Flow](docs/diagrams/encrypted-tally-flow.svg)

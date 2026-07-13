@@ -4,7 +4,7 @@ Test-Szenarien für das Blockchain-Wahlsystem
 Demonstriert alle Hauptfunktionen des Systems
 """
 
-from blockchainV1 import Blockchain
+from voting_system.blockchain_v1 import Blockchain
 import json
 
 def print_header(text):
@@ -169,7 +169,7 @@ Blockchain-Wahlsystem Test ERFOLGREICH ✓
 
 ✅ Anforderungen erfüllt:
    ✓ Alle Nutzer können Wahl auswerten (/api/results)
-   ✓ Alle Nutzer sind anonym (Semaphore Commitments)
+   ✓ Demo nutzt Commitments statt Namen
    ✓ Blockchain-Sicherheit (SHA-256 Hashing)
    ✓ Integrität verifizierbar (/api/verify)
 
@@ -180,7 +180,7 @@ Blockchain-Wahlsystem Test ERFOLGREICH ✓
    • Blockchain gültig: {'Ja' if blockchain.chain_valid(blockchain.chain) else 'Nein'}
 
 🔐 Sicherheit:
-   • Anonymität: Semaphore Zero-Knowledge Proofs
+   • Anonymität: Demo-Commitments, echte Semaphore-Proofs als Ausblick
    • Integrität: Proof-of-Work + SHA-256
    • Doppelstimmen: Verhindert ✓
    • Dezentralisierung: Jeder kann validieren ✓

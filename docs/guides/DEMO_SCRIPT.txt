@@ -1,0 +1,142 @@
+PRAESENTATIONSABLAUF - V2 VOTING DEMO
+======================================
+
+1. NETZWERK
+-----------
+
+    .venv/bin/python scripts/v2_node_launcher.py
+
+Im Controller die frische 3-Node-Demo starten.
+
+Zeigen:
+- node1 ist Validator.
+- node2 und node3 sind Observer mit getrennten Data-Dirs.
+- alle Nodes verifizieren dieselben Signaturen und Transaktionsregeln.
+
+
+2. WAHL UND COMMITTEE
+---------------------
+
+Dashboard unter http://127.0.0.1:5001/dashboard oeffnen.
+
+- Titel und Kandidaten eintragen.
+- Committee 5, Threshold 3 setzen.
+- Admin Key und Node Key stehen auf den lokalen Demo-Defaults.
+- Wahl erzeugen.
+- Die fuenf privaten Member-Shares einzeln speichern.
+
+Erklaeren:
+- Committee-Keymaterial entsteht im Browser.
+- Nur Public Key und Public Shares gehen zur Node.
+- Die Node besitzt keinen privaten Committee-Key.
+
+
+3. REGISTRIERUNG
+----------------
+
+Voter unter http://127.0.0.1:5001/voter oeffnen.
+
+- Wahl laden.
+- Voter-Secret eingeben.
+- Registrieren.
+
+Im Dashboard den Mempool zeigen und Block minen.
+
+Erklaeren:
+- Das Secret bleibt im Browser.
+- Die Chain speichert nur ein Demo-Commitment.
+
+
+4. VERSCHLUESSELTE STIMME
+-------------------------
+
+- Kandidat auswaehlen.
+- Verschluesselt waehlen.
+- Transaktionsstatus im Voter Client zeigen.
+- Im Dashboard encrypted_ballot und nullifier_hash im Mempool zeigen.
+- Block minen.
+
+Erklaeren:
+- One-Hot und Klarwahl existieren nur im Browser.
+- Die Node erhaelt keinen candidate_index und kein Voter-Secret.
+- Derselbe registrierte Voter kann nur den gebundenen Nullifier verwenden.
+
+
+5. DOUBLE VOTING
+----------------
+
+Mit demselben Secret erneut abstimmen.
+
+Erwartung:
+- Die Node lehnt den bereits verwendeten Nullifier ab.
+- Ein manuell erfundener alternativer Nullifier wird ebenfalls abgelehnt,
+  weil er nicht zum registrierten Commitment passt.
+
+Grenze nennen:
+- Diese Bindung ist noch nicht anonym. Produktion braucht einen ZK-Nullifier.
+
+
+6. NODE-SYNC
+------------
+
+- Node2-Dashboard unter http://127.0.0.1:5002/dashboard oeffnen.
+- Node Key eintragen und Sync ausfuehren.
+- fuer node3 wiederholen.
+- gleiche Chain-Length und gleichen Latest Hash zeigen.
+
+
+7. FINALISIERUNG
+----------------
+
+Im node1-Dashboard:
+
+- Wahl auswaehlen.
+- Finalize-Beispiel laden.
+- mit Admin Key senden.
+- Block minen.
+
+Zeigen:
+- Admin-Aktion ohne korrekten Key wird abgelehnt.
+- Voter und Committee koennen nicht selbst minen.
+
+
+8. THRESHOLD-COMMITTEE
+----------------------
+
+Committee unter http://127.0.0.1:5001/committee oeffnen.
+
+- Wahl auswaehlen.
+- zuerst nur zwei Share-Dateien laden: Threshold fehlt.
+- danach eine dritte passende Share-Datei laden: Threshold erreicht.
+- Tally publishen.
+
+Im Dashboard die Tally-Transaktion minen.
+
+Erklaeren:
+- Die Share-Dateien werden nur im Committee-Browser gelesen.
+- Partial Decryptions und Chaum-Pedersen-Proofs sind oeffentlich.
+- einzelne Stimmen werden nie entschluesselt.
+
+
+9. PUBLIC VERIFY
+----------------
+
+Im Dashboard Verify ausfuehren.
+
+Erwartung:
+- Chain gueltig
+- Nullifier eindeutig
+- encrypted Ballots importierbar und aggregierbar
+- published encrypted Tally stimmt mit allen Ballots ueberein
+- Partial-Decryption-Proofs gueltig
+- Plaintext-Tally passt zur Threshold-Entschluesselung
+- result_status=verified
+- complete=true
+
+
+FAZIT
+-----
+
+"Die Voter- und Committee-Geheimnisse bleiben in ihren Clients. Die Chain
+speichert nur oeffentliche Hashes, Ciphertexts und Beweise. Jede Node kann den
+signierten Verlauf und das publizierte Gesamtergebnis selbst pruefen."

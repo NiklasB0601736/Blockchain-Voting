@@ -40,14 +40,14 @@ Geplanter Minimal-Umbau
 
     Aktuell:
 
-        uvicorn.run("blockchainV1:app", host="127.0.0.1", port=port, reload=reload)
+        uvicorn.run("voting_system.blockchain_v1:app", host="127.0.0.1", port=port, reload=reload)
 
     Ziel:
 
         host = os.environ.get("HOST", "127.0.0.1")
-        uvicorn.run("blockchainV1:app", host=host, port=port, reload=reload)
+        uvicorn.run("voting_system.blockchain_v1:app", host=host, port=port, reload=reload)
 
-[ ] `v2_node_launcher.py` soll ein Feld fuer `HOST` bekommen.
+[ ] `scripts/v2_node_launcher.py` soll ein Feld fuer `HOST` bekommen.
 
     Default:
 
@@ -201,4 +201,3 @@ Falls LAN/Firewall/Uni-WLAN Probleme macht:
     - Vote auf Node 1 abgeben
     - Block minen
     - Node 2/3 syncen
-

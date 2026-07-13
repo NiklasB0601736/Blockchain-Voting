@@ -144,7 +144,7 @@
 <body>
     <header>
         <h1>V2 Committee Client</h1>
-        <p class="subtitle">Getrennte Auszaehlung: Das Committee sieht encrypted Ballots, waehlt Member-Shares aus, prueft Threshold und publisht Ergebnis plus Decryption-Proofs auf die Chain.</p>
+        <p class="subtitle">Private Shares lokal laden, Tally berechnen und Proofs publishen.</p>
     </header>
 
     <main>
@@ -157,7 +157,7 @@
                     <button onclick="loadElections()">Wahlen laden</button>
                     <button class="secondary" onclick="openDashboard()">Node Dashboard oeffnen</button>
                 </div>
-                <div id="connectionFeedback" class="feedback muted">Noch keine Aktion ausgefuehrt.</div>
+                <div id="connectionFeedback" class="feedback muted">Bereit.</div>
             </div>
 
             <div class="panel span-4">
@@ -166,19 +166,15 @@
             </div>
 
             <div class="panel span-4">
-                <h2>2. Committee Members</h2>
+                <h2>2. Private Member-Shares</h2>
                 <div id="memberGrid" class="member-grid"></div>
-                <label for="memberIds">Ausgewaehlte IDs</label>
-                <input id="memberIds" value="1,2,3" oninput="syncMembersFromInput()">
+                <label for="shareFiles">Share-Dateien auswaehlen</label>
+                <input id="shareFiles" type="file" accept="application/json,.json" multiple onchange="loadShareFiles()">
                 <div class="button-row">
                     <button class="secondary" onclick="previewCommittee()">Threshold pruefen</button>
                     <button onclick="publishTally()">Tally publishen</button>
                 </div>
-                <label>
-                    <input id="mineDirectly" type="checkbox" style="width: auto; min-height: auto;" checked>
-                    Direkt Block minen
-                </label>
-                <div id="committeeFeedback" class="feedback muted">Bereit fuer Threshold-Pruefung.</div>
+                <div id="committeeFeedback" class="feedback muted">Bereit.</div>
             </div>
 
             <div class="panel span-4">
@@ -198,9 +194,10 @@
         </section>
     </main>
 
+    <script src="/assets/voting_crypto.bundle.js"></script>
     <script>
         let selectedElection = null;
-        let selectedMembers = new Set([1, 2, 3]);
+        let loadedShares = [];
 
         document.addEventListener('DOMContentLoaded', () => {
             renderMembers();
@@ -218,7 +215,7 @@
                 .replaceAll('<', '&lt;')
                 .replaceAll('>', '&gt;')
                 .replaceAll('"', '&quot;')
-                .replaceAll("'", '&#039;");
+                .replaceAll("'", '&#039;');
         }
 
         function showRaw(value) {
@@ -268,13 +265,11 @@
             setFeedback('connectionFeedback', 'pending', 'Lade Wahldetails...');
             try {
                 selectedElection = await requestJson(`/api/v2/elections/${electionId}`);
-                const defaults = Array.from({ length: selectedElection.committee.threshold }, (_, index) => index + 1);
-                selectedMembers = new Set(defaults);
-                document.getElementById('memberIds').value = defaults.join(',');
+                loadedShares = [];
+                document.getElementById('shareFiles').value = '';
                 renderMembers();
                 renderStatus();
                 await loadElections();
-                await previewCommittee();
                 setFeedback('connectionFeedback', 'success', `Wahl ausgewaehlt: ${selectedElection.title}`);
             } catch (error) {
                 setFeedback('connectionFeedback', 'error', `Wahl konnte nicht geladen werden: ${error.message}`);
@@ -284,40 +279,38 @@
         function renderMembers() {
             const grid = document.getElementById('memberGrid');
             const count = selectedElection ? selectedElection.committee.member_count : 5;
+            const loadedIds = new Set(loadedShares.map(share => Number(share.member_id)));
             grid.innerHTML = Array.from({ length: count }, (_, index) => {
                 const memberId = index + 1;
                 return `
-                    <div class="member ${selectedMembers.has(memberId) ? 'selected' : ''}" onclick="toggleMember(${memberId})">
-                        Member ${memberId}
+                    <div class="member ${loadedIds.has(memberId) ? 'selected' : ''}">
+                        Member ${memberId}: ${loadedIds.has(memberId) ? 'geladen' : 'fehlt'}
                     </div>
                 `;
             }).join('');
         }
 
-        function toggleMember(memberId) {
-            if (selectedMembers.has(memberId)) {
-                selectedMembers.delete(memberId);
-            } else {
-                selectedMembers.add(memberId);
+        async function loadShareFiles() {
+            if (!selectedElection) {
+                setFeedback('committeeFeedback', 'error', 'Bitte zuerst eine Wahl auswaehlen.');
+                return;
             }
-            document.getElementById('memberIds').value = Array.from(selectedMembers).sort((a, b) => a - b).join(',');
-            renderMembers();
-            renderStatus();
-        }
-
-        function syncMembersFromInput() {
-            selectedMembers = new Set(
-                document.getElementById('memberIds').value
-                    .split(',')
-                    .map(value => Number(value.trim()))
-                    .filter(value => Number.isInteger(value) && value > 0)
-            );
-            renderMembers();
-            renderStatus();
-        }
-
-        function memberArray() {
-            return Array.from(selectedMembers).sort((a, b) => a - b);
+            try {
+                const files = Array.from(document.getElementById('shareFiles').files);
+                const shares = await Promise.all(files.map(async file => JSON.parse(await file.text())));
+                shares.forEach(share => VotingCrypto.validateCommitteeShare(selectedElection, share));
+                loadedShares = Array.from(
+                    new Map(shares.map(share => [Number(share.member_id), share])).values(),
+                );
+                renderMembers();
+                renderStatus();
+                setFeedback('committeeFeedback', 'success', `${loadedShares.length} gueltige Share-Datei(en) geladen.`);
+            } catch (error) {
+                loadedShares = [];
+                renderMembers();
+                renderStatus();
+                setFeedback('committeeFeedback', 'error', `Share ungueltig: ${error.message}`);
+            }
         }
 
         function renderStatus(extra = '') {
@@ -327,12 +320,11 @@
                 return;
             }
             const threshold = selectedElection.committee.threshold;
-            const selected = memberArray();
-            const thresholdMet = selected.length >= threshold;
+            const thresholdMet = loadedShares.length >= threshold;
             panel.innerHTML = `
                 <div class="item">
                     <strong>Threshold</strong>
-                    <div>${selected.length} von ${threshold} erforderlich</div>
+                    <div>${loadedShares.length} von ${threshold} erforderlich</div>
                     <div class="${thresholdMet ? 'ok' : 'bad'}">${thresholdMet ? 'erreicht' : 'nicht erreicht'}</div>
                 </div>
                 <div class="item">
@@ -352,39 +344,24 @@
                 setFeedback('committeeFeedback', 'error', 'Bitte zuerst eine Wahl auswaehlen.');
                 return;
             }
-            setFeedback('committeeFeedback', 'pending', 'Pruefe lokale Committee-Shares und Threshold...');
+            setFeedback('committeeFeedback', 'pending', 'Pruefe Threshold...');
             try {
-                const preview = await requestJson('/api/v2/demo/committee/preview', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        election_id: selectedElection.election_id,
-                        participating_member_ids: memberArray(),
-                    }),
-                });
-                showRaw(preview);
-                renderStatus(`
-                    <div class="item">
-                        <strong>Lokale Committee-Datei</strong>
-                        <div class="mono">${escapeHtml(preview.private_committee_state_path)}</div>
-                    </div>
-                `);
+                loadedShares.forEach(share => VotingCrypto.validateCommitteeShare(selectedElection, share));
+                const ballotResponse = await requestJson(`/api/v2/elections/${selectedElection.election_id}/encrypted-ballots`);
+                const thresholdMet = loadedShares.length >= selectedElection.committee.threshold;
+                showRaw({ loaded_member_ids: loadedShares.map(share => share.member_id), encrypted_ballot_count: ballotResponse.encrypted_ballots.length });
                 document.getElementById('previewPanel').innerHTML = `
                     <div class="item">
-                        <strong>Threshold ${preview.threshold_met ? 'erreicht' : 'nicht erreicht'}</strong>
-                        <div>selected: ${preview.selected_member_ids.join(', ') || '-'}</div>
-                        <div>required: ${preview.committee_threshold}</div>
+                        <strong>Threshold ${thresholdMet ? 'erreicht' : 'nicht erreicht'}</strong>
+                        <div>geladen: ${loadedShares.map(share => share.member_id).join(', ') || '-'}</div>
+                        <div>erforderlich: ${selectedElection.committee.threshold}</div>
                     </div>
                     <div class="item">
                         <strong>Encrypted Ballots</strong>
-                        <div>${preview.encrypted_ballot_count}</div>
-                    </div>
-                    <div class="item">
-                        <strong>Encrypted Tally</strong>
-                        <div>${preview.encrypted_tally ? 'berechenbar' : 'noch keine Stimmen'}</div>
+                        <div>${ballotResponse.encrypted_ballots.length}</div>
                     </div>
                 `;
-                setFeedback('committeeFeedback', preview.threshold_met ? 'success' : 'error', preview.threshold_met ? 'Threshold erreicht. Tally kann veroeffentlicht werden.' : 'Threshold nicht erreicht. Waehle mehr Committee Members.');
+                setFeedback('committeeFeedback', thresholdMet ? 'success' : 'error', thresholdMet ? 'Threshold erreicht.' : 'Threshold fehlt.');
             } catch (error) {
                 setFeedback('committeeFeedback', 'error', `Preview fehlgeschlagen: ${error.message}`);
             }
@@ -395,35 +372,35 @@
                 setFeedback('committeeFeedback', 'error', 'Bitte zuerst eine Wahl auswaehlen.');
                 return;
             }
-            setFeedback('committeeFeedback', 'pending', 'Berechne encrypted tally, Partial Decryptions und Proofs...');
+            setFeedback('committeeFeedback', 'pending', 'Berechne Tally...');
             try {
-                const result = await requestJson('/api/v2/demo/committee/publish-tally', {
+                const ballotResponse = await requestJson(`/api/v2/elections/${selectedElection.election_id}/encrypted-ballots`);
+                const tallyPayload = VotingCrypto.createThresholdTallyPayload(
+                    selectedElection,
+                    ballotResponse.encrypted_ballots,
+                    loadedShares,
+                );
+                const result = await requestJson('/api/v2/transactions', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        election_id: selectedElection.election_id,
-                        participating_member_ids: memberArray(),
-                        mine: document.getElementById('mineDirectly').checked,
+                        type: 'publish_tally_result',
+                        payload: tallyPayload,
                     }),
                 });
-                showRaw(result);
+                showRaw({ transaction: result.transaction, public_tally_payload: tallyPayload });
                 document.getElementById('previewPanel').innerHTML = `
                     <div class="item">
                         <strong>Plaintext Tally</strong>
-                        <div class="mono">[${result.plaintext_tally.join(', ')}]</div>
+                        <div class="mono">[${tallyPayload.published_result.plaintext_tally.join(', ')}]</div>
                     </div>
                     <div class="item">
                         <strong>Published Transaction</strong>
                         <div class="mono">${escapeHtml(result.transaction.tx_id)}</div>
                     </div>
-                    <div class="item">
-                        <strong>Block</strong>
-                        <div>${result.block ? `committed in #${result.block.index}` : 'liegt im Mempool'}</div>
-                    </div>
+                    <div class="item">Liegt im Mempool. Validator muss einen Block erstellen.</div>
                 `;
-                selectedElection = await requestJson(`/api/v2/elections/${selectedElection.election_id}`);
-                renderStatus();
-                setFeedback('committeeFeedback', result.block ? 'success' : 'success', result.block ? 'Tally wurde berechnet, bewiesen und in einen Block geschrieben.' : 'Tally wurde berechnet und liegt als publish_tally_result im Mempool.');
+                setFeedback('committeeFeedback', 'success', 'Tally und Proofs im Mempool.');
             } catch (error) {
                 setFeedback('committeeFeedback', 'error', `Tally konnte nicht published werden: ${error.message}`);
             }

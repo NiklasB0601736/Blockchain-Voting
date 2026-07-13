@@ -160,6 +160,9 @@ venv.bak/
 # Local distributed-chain node state
 .node-data/
 
+# JavaScript dependencies; package-lock.json remains committed.
+node_modules/
+
 # Spyder project settings
 .spyderproject
 .spyproject

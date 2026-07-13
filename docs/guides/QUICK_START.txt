@@ -1,0 +1,94 @@
+QUICK START - V2 BLOCKCHAIN VOTING
+==================================
+
+INSTALLATION
+------------
+
+    python3 -m venv .venv
+    source .venv/bin/activate
+    .venv/bin/pip3 install -r requirements.txt
+
+
+DEMO STARTEN
+------------
+
+    .venv/bin/python scripts/v2_node_launcher.py
+
+Im Node Controller:
+
+    1. "Demo-State vorher resetten" aktivieren.
+    2. "3-Node-Demo starten" klicken.
+    3. "Demo Links oeffnen" klicken.
+
+Adressen:
+
+    Dashboard  http://127.0.0.1:5001/dashboard
+    Voter      http://127.0.0.1:5001/voter
+    Committee  http://127.0.0.1:5001/committee
+    API Docs   http://127.0.0.1:5001/docs
+
+Lokale Rollenkeys:
+
+    Admin Key  dev_admin_key
+    Node Key   dev_node_key
+
+
+WAHLABLAUF
+----------
+
+1. Dashboard:
+   - Titel, Kandidaten, Member Count und Threshold setzen.
+   - "Wahl und Committee erzeugen" klicken.
+   - Jeden privaten Committee-Share einzeln speichern.
+
+2. Voter:
+   - Wahl auswaehlen.
+   - lokales Secret eingeben.
+   - "Registrieren" klicken.
+
+3. Dashboard:
+   - "Mine" klicken. Die Registrierung ist jetzt committed.
+
+4. Voter:
+   - Kandidat auswaehlen.
+   - "Verschluesselt waehlen" klicken.
+   - Secret und Klarwahl bleiben im Browser.
+
+5. Dashboard:
+   - Vote-Transaktion im Mempool zeigen.
+   - "Mine" klicken.
+   - Node 2 und Node 3 synchronisieren.
+
+6. Dashboard:
+   - Wahl auswaehlen.
+   - Finalize-Beispiel laden und mit Admin Key senden.
+   - "Mine" klicken.
+
+7. Committee:
+   - Wahl auswaehlen.
+   - zuerst weniger als den Threshold an Share-Dateien laden.
+   - danach mindestens den Threshold laden.
+   - "Tally publishen" klicken.
+
+8. Dashboard:
+   - Tally-Transaktion minen.
+   - "Verify" klicken.
+   - Erwartung: result_status=verified und complete=true.
+
+
+TESTS
+-----
+
+    .venv/bin/python -m unittest discover -s tests
+    npm run test:web-crypto
+
+Der Drei-Node-Prozesstest oeffnet lokale Testports. In stark eingeschraenkten
+Sandbox-Umgebungen kann dafuer eine Freigabe erforderlich sein.
+
+
+SICHERHEITSGRENZE
+-----------------
+
+Die Demo verschluesselt lokal und verteilt Committee-Shares als einzelne
+Dateien. Echte anonyme Wahlberechtigung, ZK-Ballot-Proofs, Metadatenschutz,
+Hardware-Keyschutz und produktiver Konsens bleiben offene Ausbaustufen.
