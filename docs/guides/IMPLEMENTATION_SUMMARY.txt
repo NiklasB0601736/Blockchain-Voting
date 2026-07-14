@@ -1,119 +1,299 @@
-IMPLEMENTATION SUMMARY - V2 PROTOTYP
-====================================
+TECHNISCHE IMPLEMENTIERUNGSREFERENZ - V2 PROTOTYP
+=================================================
 
-ZIEL
-----
-
-Eine eigene verteilte Python-Chain speichert nur verschluesselte Ballots.
-Ein Threshold-Committee publiziert das Gesamtergebnis mit Proofs. Jede Node
-kann das Ergebnis aus oeffentlichen Chain-Daten pruefen.
-
-
-AKTIVE KOMPONENTEN
+1. ZIEL UND STATUS
 ------------------
 
+Die aktive Implementierung ist eine eigene verteilte Python-Blockchain. Sie
+speichert verschluesselte EC-ElGamal-Ballots und ein oeffentlich pruefbares
+Threshold-Ergebnis. Ethereum, Smart Contracts und Semaphore sind nicht Teil des
+aktiven Laufzeitpfads.
+
+Der Prototyp demonstriert den vollstaendigen Ablauf von Wahlerstellung bis
+Public Verify. Er implementiert bewusst keine produktive Identitaetspruefung,
+keinen echten Membership-Proof und keinen ZK-Ballot-Gueltigkeitsbeweis.
+
+
+2. AKTIVE KOMPONENTEN
+---------------------
+
 voting_system/node_server.py
-    Eindeutiger FastAPI-Startpunkt fuer die aktive V2-Node. Liefert Dashboard,
-    Committee Client, Assets und die verteilte `/api/v2`-Schnittstelle.
-
-voting_system/distributed_blockchain.py
-    PoA-Chain, Mempool, Ed25519-Blocks, JSON-Persistenz, Peer-Sync,
-    Wahl-State, Nullifier-Regeln und Public Verify.
-
-voting_system/crypto_petlib_elgamal_tally.py
-    Petlib P-256 EC-ElGamal, homomorpher Tally, Shamir Threshold,
-    Partial Decryptions und Chaum-Pedersen-Verifikation.
-
-web/src/voting_crypto.js
-    Noble P-256 im Browser. Erzeugt Petlib-kompatible Ciphertexts,
-    getrennte Committee-Shares und Tally-Proofs lokal.
-
-web/frontend_v2.html
-    Node-/Admin-Dashboard fuer Wahl, Mempool, Mining, Sync und Verify.
-
-web/voter_client.html
-    Lokale Commitment-, Nullifier- und Ballot-Erzeugung. Secret und
-    Kandidat werden nicht an die Node gesendet.
+    FastAPI-Einstieg einer Blockchain-Node. Liefert Dashboard, Committee
+    Client, Browser-Crypto-Assets und `/api/v2`. Der Voter wird hier bewusst
+    nicht ausgeliefert.
 
 voting_system/voter_client_server.py
-    Separater, zustandsloser Server fuer Voter-HTML und Browser-Kryptografie.
-    Er besitzt keine Chain-, Admin-, Validator- oder Committee-Funktionen.
+    Zustandsloser, separater HTTPS-Server fuer den Voter Client. Besitzt keine
+    Chain, keinen Validator-Key und keine Admin- oder Committee-Funktion.
+
+voting_system/distributed_blockchain.py
+    Kanonische Hashes, Ed25519-Blocksignaturen, PoA-Validierung, Mempool,
+    JSON-Persistenz, Peer-Sync, deterministischer Wahl-State und Public Verify.
+
+voting_system/crypto_petlib_elgamal_tally.py
+    Petlib P-256 EC-ElGamal, Payload-Import und -Export, homomorpher Tally,
+    Shamir Threshold, Lagrange-Kombination und Chaum-Pedersen-Verifikation.
+
+web/src/voting_crypto.js
+    Browser-Kryptografie mit Noble P-256. Erzeugt Petlib-kompatible Ballots,
+    Committee-Shares, Partial Decryptions und Proofs.
+
+web/assets/voting_crypto.bundle.js
+    Mit esbuild erzeugtes Browser-Bundle. Wird von allen drei Oberflaechen
+    verwendet.
+
+web/frontend_v2.html
+    Node-/Admin-Dashboard fuer Wahlverwaltung, Mempool, Blocks, Peers, Sync und
+    Verifikation.
+
+web/voter_client.html
+    Separater Client fuer Commitment, Nullifier und lokale
+    Stimmenverschluesselung. Fragt den Status der gesendeten Transaktion ab.
 
 web/committee_client.html
-    Laedt einzelne private Share-Dateien und publiziert erst ab Threshold.
+    Laedt private Share-Dateien lokal, aggregiert committed Ballots und sendet
+    einen verifizierbaren Threshold-Tally.
+
+scripts/v2_node_launcher.py
+    Scrollbarer Tk-Node-Controller fuer Einzelnode, Drei-Node-Demo, Voter-Server
+    und lokale Konfigurationswerte.
 
 scripts/run_v2_demo_network.py
-    Startet einen Validator, zwei Observer und den separaten Voter-Server.
+    Startet Node 1 als Validator, Node 2 und 3 als Observer sowie den separaten
+    Voter-Server. Alle Prozesse besitzen eigene Rollen und Datenpfade.
 
 
-ROLLEN UND KEYS
+3. CHAIN-MODELL
 ---------------
 
-Admin:
-    X-Admin-Key fuer create_election und finalize_election.
+Ein Block enthaelt:
 
-Node Operator:
-    X-Node-Key fuer Peer-Aenderung, Sync und Mining.
+    index
+    timestamp
+    previous_hash
+    validator_id
+    transactions
+    signature
+    block_hash
 
-Voter:
-    Darf Registrierung und encrypted Vote einreichen, aber nicht minen.
+Der Content-Hash wird kanonisch aus dem signierten Blockinhalt gebildet. Die
+Ed25519-Signatur deckt diesen Content-Hash ab. `block_hash` bindet anschliessend
+auch die Signatur ein. Eine Node akzeptiert einen Block nur, wenn:
+
+- Index und `previous_hash` zur lokalen Chain-Spitze passen,
+- der Validator in `VALIDATORS_JSON` registriert ist,
+- die Ed25519-Signatur gueltig ist,
+- Content- und Blockhash korrekt sind,
+- alle Transaktionen in Reihenfolge gegen den rekonstruierten State gueltig
+  sind.
+
+Der Genesis-Block wird lokal initialisiert. Jede fachliche Zustandsabfrage
+rekonstruiert die Wahlen deterministisch aus den committed Transaktionen.
+
+
+4. TRANSAKTIONSTYPEN UND REGELN
+-------------------------------
+
+create_election
+    Benoetigt `X-Admin-Key`. Wahl-ID muss neu sein. Titel und mindestens zwei
+    eindeutige Optionen sind erforderlich. Ende muss nach Start liegen. Public
+    Key, Public Shares, Member Count und Threshold muessen konsistent sein.
+
+register_voter
+    Nur in einer offenen Wahl. Das Commitment muss vorhanden und fuer diese
+    Wahl noch nicht registriert sein. Es ist eine Demo-Registrierung und kein
+    Nachweis realer Wahlberechtigung.
+
+cast_encrypted_vote
+    Nur in einer offenen Wahl. Nullifier muss neu und deterministisch an ein
+    registriertes Commitment gebunden sein. Candidate Count und Ciphertext-
+    Anzahl muessen zur Wahl passen. EC-Punkte muessen importierbar sein. Die
+    Eligibility- und Ballot-Proof-Platzhalter muessen formal vorhanden sein.
+
+finalize_election
+    Benoetigt `X-Admin-Key`. Markiert eine noch nicht finalisierte Wahl als
+    beendet. Die Transaktion kann auch vor dem konfigurierten Endzeitpunkt
+    eingereicht werden.
+
+publish_tally_result
+    Erst nach Finalisierung oder Erreichen des Endzeitpunkts und nur mit
+    mindestens einem committed Ballot. Der publizierte encrypted Tally muss aus
+    allen Chain-Ballots folgen. Pro Kandidat muessen mindestens `threshold`
+    unterschiedliche gueltige Partial Decryptions vorliegen. Proofs und
+    Klarergebnis werden vor Aufnahme in den Mempool geprueft.
+
+Alle Transaktionen erhalten einen kanonischen `tx_id` aus Typ, Zeitstempel und
+Payload. Der Mempool wird in Einfuegereihenfolge validiert. Deshalb koennen eine
+Registrierung und die anschliessende Stimme im selben Block committed werden.
+
+
+5. MEMPOOL, MINING UND SYNC
+---------------------------
+
+Eine angenommene Transaktion liegt zuerst nur im lokalen Mempool. Beim Mining
+validiert der Validator den gesamten Mempool erneut, erzeugt einen Block,
+signiert ihn und entfernt committed Transaktionen aus dem Mempool.
+
+Observer besitzen keinen `NODE_PRIVATE_KEY` und koennen keine Blocks erzeugen.
+Sie koennen ueber ihre Peer-Liste Chain und Mempool abrufen. Eine laengere Chain
+wird nur nach vollstaendiger Validierung uebernommen. Die Fork-Regel ist fuer
+den Prototyp bewusst einfach: laengere gueltige Chain gewinnt.
+
+Es gibt kein automatisches Gossip. Sync wird manuell ueber das Dashboard oder
+`POST /api/v2/sync` ausgeloest.
+
+
+6. KRYPTOGRAFISCHER ABLAUF
+--------------------------
 
 Committee:
-    Darf nur einen Tally einreichen, der die kryptografische Verifikation
-    der Chain besteht.
+
+    Public Key H = x * G
+    Share s_i = f(i)
+    Public Share Y_i = s_i * G
+
+Ballot-Komponente fuer Klarwert m aus {0, 1}:
+
+    A = r * G
+    B = r * H + m * G
+
+Homomorphe Aggregation:
+
+    A_total = Summe A_j
+    B_total = Summe B_j
+
+Partial Decryption:
+
+    D_i = s_i * A_total
+
+Chaum-Pedersen beweist ohne Offenlegung von `s_i`:
+
+    log_G(Y_i) = log_A_total(D_i)
+
+Aus mindestens `t` Partial Decryptions wird mit Lagrange-Koeffizienten der
+gemeinsame Faktor rekonstruiert. Nach dessen Entfernung aus `B_total` entsteht
+`tally * G`. Da der Tally im kleinen Bereich `0..Anzahl Ballots` liegt, wird der
+Klarwert ueber eine begrenzte Punkt-Lookup-Suche bestimmt.
+
+Die Chain entschluesselt keine einzelnen Ballots. Veroeffentlicht und geprueft
+wird nur der aggregierte Tally.
 
 
-CHAIN-DATEN
------------
+7. REGISTRIERUNG UND DOUBLE VOTING
+----------------------------------
 
-Gespeichert werden:
+Der Browser berechnet:
 
-- Wahlmetadaten und Committee-Public-Payload
-- registrierte Demo-Commitment-Hashes
-- gebundene Nullifier-Hashes
-- EC-ElGamal-Ciphertexts
-- encrypted Tally, Klarergebnis, Partial Decryptions und Proofs
+    commitment_hash = SHA-256(voter_secret)
+    nullifier_hash  = SHA-256(election_id : commitment_hash : nullifier)
 
-Nicht gespeichert oder an die Node gesendet werden:
+Die Node verlangt, dass das Commitment registriert ist, der Nullifier exakt zu
+diesem Commitment und dieser Wahl passt und noch nicht verwendet wurde. Damit
+kann dasselbe Demo-Secret auf derselben Wahl nicht mit einem frei erfundenen
+zweiten Nullifier erneut abstimmen.
 
-- Name
-- Voter-Secret
-- Kandidatenauswahl als Klarwert
-- private Committee-Shares
+Grenze: Commitment und Nullifier sind oeffentlich miteinander verknuepfbar. Das
+ist keine anonyme Credential- oder Semaphore-Loesung. Ein Produktivsystem muss
+die Membership und korrekte Nullifier-Ableitung in Zero Knowledge beweisen.
 
 
-VERIFY-BEDEUTUNG
+8. PUBLIC VERIFY
 ----------------
 
-valid=true
-    Die bisher vorhandenen Chain-Daten enthalten keinen erkannten Fehler.
+Die Wahlverifikation prueft:
 
-complete=true und result_status=verified
-    Wahl ist finalisiert, Ergebnis publiziert und komplett gegen Ballots,
-    Public Shares und Proofs geprueft.
+    chain_valid
+    nullifiers_unique
+    encrypted_ballots_importable
+    encrypted_tally_matches_ballots
+    published_encrypted_tally_matches_ballots
+    partial_decryption_proofs_valid
+    plaintext_tally_matches_decryption
+    published_result_valid
+
+`valid=true` beschreibt nur die vorhandenen Daten. Noch nicht publizierte
+Tally-Pruefungen sind `null` und machen einen offenen Zwischenstand nicht
+ungueltig.
+
+`complete=true` gilt ausschliesslich, wenn die Wahl finalisiert ist, ein
+publiziertes Ergebnis existiert und der finale Verifier dieses akzeptiert.
 
 
-TESTABDECKUNG
--------------
+9. API
+------
 
-- Pure-Python- und Petlib-Kryptografie
-- Noble-Browser-Kryptografie
-- Noble-Payloads werden von Petlib akzeptiert
-- Hash-, Signatur-, Mempool- und Nullifier-Regeln
-- Rollenkeys
-- echter HTTPS-Sync zwischen drei FastAPI-Prozessen
-- HTML-Routen und Browser-Crypto-Bundle
+Oeffentliche Lesezugriffe:
+
+    GET  /api/v2/node/info
+    GET  /api/v2/chain
+    GET  /api/v2/blocks/{index}
+    GET  /api/v2/mempool
+    GET  /api/v2/transactions/{tx_id}
+    GET  /api/v2/elections
+    GET  /api/v2/elections/{election_id}
+    GET  /api/v2/elections/{election_id}/encrypted-ballots
+    GET  /api/v2/elections/{election_id}/encrypted-tally
+    GET  /api/v2/elections/{election_id}/published-result
+    GET  /api/v2/elections/{election_id}/verify
+
+Schreibzugriffe:
+
+    POST /api/v2/transactions
+    POST /api/v2/blocks
+    POST /api/v2/peers                 X-Node-Key
+    POST /api/v2/sync                  X-Node-Key
+    POST /api/v2/blocks/mine           X-Node-Key
+
+Bei `POST /api/v2/transactions` verlangen `create_election` und
+`finalize_election` zusaetzlich `X-Admin-Key`.
 
 
-NICHT PRODUKTIV IMPLEMENTIERT
------------------------------
+10. PERSISTENZ UND TLS
+----------------------
 
-- Semaphore oder anderer echter ZK-Membership-Proof
-- ZK-Beweis fuer gueltige One-Hot-Ballots
-- reale Ausgabe und Sperrung von Wahlberechtigungen
-- verschluesselter/HSM-gestuetzter Share-Speicher
-- BFT-Konsens und automatische Gossip-Verteilung
-- Metadatenschutz, Audits, formale Analyse und Zulassung
+Pro Node werden Chain, Mempool und Peers als JSON im konfigurierten `DATA_DIR`
+gespeichert. Ein Validator-Keywechsel macht bereits signierte Blocks nicht
+mehr mit der neuen Validator-Konfiguration pruefbar. Fuer eine neue Demo muss
+dann der passende alte Key verwendet oder der Demo-State bewusst zurueckgesetzt
+werden.
 
-Der Ethereum-/Hardhat-Entwurf liegt nur noch unter
-archive/ethereum-experiment/ und gehoert nicht zum aktiven V2-Build.
+Alle aktiven HTTP-Dienste verwenden HTTPS. Standardmaessig wird eine lokale CA
+unter `.node-data/tls/` erzeugt. Python-Peer-Verbindungen pruefen Zertifikate
+gegen diese CA. Browserwarnungen verschwinden erst, nachdem
+`development-ca.pem` im Betriebssystem als vertrauenswuerdig importiert wurde.
+
+
+11. TESTABDECKUNG
+-----------------
+
+Python:
+
+    .venv/bin/python -m unittest discover -s tests
+
+JavaScript:
+
+    npm run test:web-crypto
+
+Abgedeckt sind Krypto, Proofs, Payload-Roundtrips, Browser/Petlib-Interop,
+Hashes, Signaturen, Mempool, Rollenkeys, Wahlregeln, Double Voting,
+Frontend-Auslieferung, TLS-Zertifikate und echter Drei-Prozess-Node-Sync.
+
+
+12. PRODUKTIONSGRENZEN
+----------------------
+
+- keine reale Identitaets- oder Wahlberechtigungsinfrastruktur
+- kein echter ZK-Membership-/Nullifier-Proof
+- kein ZK-One-Hot-Ballot-Proof
+- zentrale Share-Erzeugung im Admin-Browser statt DKG
+- unverschluesselte lokale Share-Dateien
+- ein Validator in der Standarddemo, kein BFT-Konsens
+- einfache Laengste-Chain-Regel und manueller Sync
+- JSON statt transaktionaler Datenbank
+- keine gehaertete Autorisierung, Rate Limits oder sichere Secret-Verwaltung
+- kein Metadaten-, Traffic-Analyse- oder Anonymisierungsnetzwerk
+- lokale Entwicklungs-CA statt produktiver PKI
+- keine formale Analyse, externen Audits oder rechtliche Zulassung
+
+Diese Punkte muessen vor einem Einsatz ausserhalb einer kontrollierten
+Lernumgebung als eigene Sicherheits- und Systemarchitektur geloest werden.

@@ -1,46 +1,61 @@
-QUICK START - V2 BLOCKCHAIN VOTING
-==================================
+QUICK START - BLOCKCHAIN VOTING PROTOTYP
+========================================
 
-INSTALLATION
-------------
+1. INSTALLIEREN
+---------------
 
     python3 -m venv .venv
     source .venv/bin/activate
-    .venv/bin/pip3 install -r requirements.txt
+    .venv/bin/pip install -r requirements.txt
+
+Node.js ist fuer den normalen Start nicht erforderlich. Das Browser-Crypto-
+Bundle ist bereits gebaut.
 
 
-HTTPS EINMALIG VERTRAUEN
-------------------------
+2. HTTPS EINMALIG VERTRAUEN
+---------------------------
 
-Beim ersten Start entstehen lokale Zertifikate unter:
-
-    .node-data/tls/
-
-Die Datei development-ca.pem einmal in den Zertifikatsspeicher des Browsers
-bzw. Betriebssystems importieren und fuer die lokale Demo als vertrauenswuerdig
-markieren. Ohne diesen Schritt zeigt der Browser eine Zertifikatswarnung.
-
-Zertifikate vorab erzeugen:
+TLS-Material erzeugen:
 
     npm run tls:generate
 
+Alternativ wird es beim ersten Start automatisch unter `.node-data/tls/`
+erzeugt. Damit der Browser keine Warnung zeigt, die Datei
 
-DEMO STARTEN
-------------
+    .node-data/tls/development-ca.pem
+
+einmal in den Zertifikatsspeicher importieren und als vertrauenswuerdig
+markieren. Auf macOS: Schluesselbundverwaltung -> System -> Importieren ->
+Zertifikat oeffnen -> Vertrauen -> Immer vertrauen. Danach den Browser neu
+starten.
+
+Die Datei `development-ca-key.pem` ist privat und darf nicht weitergegeben
+werden.
+
+
+3. DEMO STARTEN
+---------------
 
     .venv/bin/python scripts/v2_node_launcher.py
 
 Im Node Controller:
 
-    1. "Demo-State vorher resetten" aktivieren.
-    2. "3-Node-Demo starten" klicken.
-    3. "Demo Links oeffnen" klicken.
+    1. Optional "Demo-State vorher resetten" aktivieren.
+    2. "3-Node-Demo starten" auswaehlen.
+    3. Auf die Startmeldungen aller vier Prozesse warten.
+    4. "Demo Links oeffnen" auswaehlen.
+
+Direktstart ohne GUI:
+
+    .venv/bin/python scripts/run_v2_demo_network.py --reset
 
 Adressen:
 
-    Dashboard  https://127.0.0.1:5001/dashboard
-    Voter      https://127.0.0.1:7000/?node=https://127.0.0.1:5001
+    Node 1     https://127.0.0.1:5001/dashboard
+    Node 2     https://127.0.0.1:5002/dashboard
+    Node 3     https://127.0.0.1:5003/dashboard
     Committee  https://127.0.0.1:5001/committee
+    Voter      https://127.0.0.1:7000/?node=https://127.0.0.1:5001
     API Docs   https://127.0.0.1:5001/docs
 
 Lokale Rollenkeys:
@@ -49,62 +64,74 @@ Lokale Rollenkeys:
     Node Key   dev_node_key
 
 
-WAHLABLAUF
-----------
+4. WAHL DURCHFUEHREN
+--------------------
 
-1. Dashboard:
-   - Titel, Kandidaten, Member Count und Threshold setzen.
-   - "Wahl und Committee erzeugen" klicken.
-   - Jeden privaten Committee-Share einzeln speichern.
+Dashboard, Node 1:
 
-2. Separater Voter Client:
-   - Wahl auswaehlen.
-   - lokales Secret eingeben.
-   - "Registrieren" klicken.
+    1. Titel, Kandidaten, Zeitraum, Member Count und Threshold setzen.
+    2. "Wahl und Committee erzeugen" auswaehlen.
+    3. Alle privaten Committee-Share-Dateien getrennt speichern.
+    4. Mempool als Block minen.
 
-3. Dashboard:
-   - "Mine" klicken. Die Registrierung ist jetzt committed.
+Separater Voter Client:
 
-4. Voter:
-   - Kandidat auswaehlen.
-   - "Verschluesselt waehlen" klicken.
-   - Secret und Klarwahl bleiben im Browser.
+    5. Wahl laden und ein Demo-Secret eingeben.
+    6. Registrieren.
 
-5. Dashboard:
-   - Vote-Transaktion im Mempool zeigen.
-   - "Mine" klicken.
-   - Node 2 und Node 3 synchronisieren.
+Dashboard, Node 1:
 
-6. Dashboard:
-   - Wahl auswaehlen.
-   - "Wahl beenden" mit Admin Key ausfuehren.
-   - "Mine" klicken.
+    7. Registrierung als Block minen.
 
-7. Committee:
-   - Wahl auswaehlen.
-   - zuerst weniger als den Threshold an Share-Dateien laden.
-   - danach mindestens den Threshold laden.
-   - "Tally publishen" klicken.
+Voter Client:
 
-8. Dashboard:
-   - Tally-Transaktion minen.
-   - "Verify" klicken.
-   - Erwartung: result_status=verified und complete=true.
+    8. Kandidaten auswaehlen und verschluesselt waehlen.
+    9. Transaktionsstatus anzeigen.
+
+Dashboard, Node 1:
+
+   10. Vote-Block minen.
+   11. Wahl mit dem Admin Key beenden und diese Transaktion minen.
+
+Dashboard, Node 2 und Node 3:
+
+   12. Mit dem Node Key synchronisieren.
+   13. Gleiche Chain-Laenge und gleichen letzten Blockhash pruefen.
+
+Committee Client:
+
+   14. Wahl laden.
+   15. Mindestens den Threshold unterschiedlicher Share-Dateien laden.
+   16. Tally publizieren.
+
+Dashboard, Node 1:
+
+   17. Tally-Transaktion minen.
+   18. "Verify" ausfuehren.
+
+Erwartung:
+
+    result_status = verified
+    complete      = true
+
+Registrierung und Vote koennen technisch auch in dieser Reihenfolge im selben
+Mempool und Block liegen. Getrennte Blocks machen den Ablauf in der
+Praesentation leichter nachvollziehbar.
 
 
-TESTS
------
+5. TESTEN
+---------
 
     .venv/bin/python -m unittest discover -s tests
     npm run test:web-crypto
 
-Der Drei-Node-Prozesstest oeffnet lokale Testports. In stark eingeschraenkten
-Sandbox-Umgebungen kann dafuer eine Freigabe erforderlich sein.
 
+6. WICHTIGE GRENZE
+------------------
 
-SICHERHEITSGRENZE
------------------
+Die Demo prueft keine reale Identitaet oder Wahlberechtigung. Eligibility- und
+Ballot-ZK-Proofs sind Platzhalter. Die lokale CA, der einzelne Validator, die
+JSON-Persistenz und die vom Admin-Browser erzeugten Committee-Shares sind nicht
+fuer reale Wahlen ausgelegt.
 
-Die Demo verschluesselt lokal und verteilt Committee-Shares als einzelne
-Dateien. Echte anonyme Wahlberechtigung, ZK-Ballot-Proofs, Metadatenschutz,
-Hardware-Keyschutz und produktiver Konsens bleiben offene Ausbaustufen.
+Die vollstaendige Dokumentation und Fehlerbehebung stehen in `README.md`.
