@@ -20,6 +20,8 @@ from fastapi import FastAPI, HTTPException, status
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from voting_system.tls import configured_tls_paths
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 WEB_DIR = PROJECT_ROOT / "web"
@@ -27,7 +29,7 @@ WEB_DIR = PROJECT_ROOT / "web"
 
 def create_voter_client_app() -> FastAPI:
     """
-    Build the standalone HTTP application for the browser voting client.
+    Build the standalone HTTPS application for the browser voting client.
 
     Only the voter page, its browser cryptography bundle and a health endpoint
     are exposed. In particular, this app has no blockchain state, validator
@@ -72,12 +74,21 @@ app = create_voter_client_app()
 
 
 def main() -> None:
-    """Run the standalone client server on the configured local port."""
+    """Run the standalone client server over HTTPS."""
     import uvicorn
 
     host = os.environ.get("VOTER_CLIENT_HOST", "127.0.0.1")
     port = int(os.environ.get("VOTER_CLIENT_PORT", "7000"))
-    uvicorn.run(app, host=host, port=port, reload=False)
+    tls_paths = configured_tls_paths()
+    os.environ.setdefault("TLS_CA_CERT", str(tls_paths.ca_cert))
+    uvicorn.run(
+        app,
+        host=host,
+        port=port,
+        reload=False,
+        ssl_certfile=str(tls_paths.server_cert),
+        ssl_keyfile=str(tls_paths.server_key),
+    )
 
 
 if __name__ == "__main__":

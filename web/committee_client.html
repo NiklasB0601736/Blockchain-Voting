@@ -143,8 +143,8 @@
 </head>
 <body>
     <header>
-        <h1>V2 Committee Client</h1>
-        <p class="subtitle">Private Shares lokal laden, Tally berechnen und Proofs publishen.</p>
+        <h1 id="committeeTitle">V2 Committee Client</h1>
+        <p class="subtitle" id="committeeSubtitle">Node-Verbindung wird geladen.</p>
     </header>
 
     <main>
@@ -152,7 +152,7 @@
             <div class="panel span-12">
                 <h2>Verbindung</h2>
                 <label for="apiUrl">Node API URL</label>
-                <input id="apiUrl" value="http://127.0.0.1:5001">
+                <input id="apiUrl" placeholder="https://127.0.0.1:5001">
                 <div class="button-row">
                     <button onclick="loadElections()">Wahlen laden</button>
                     <button class="secondary" onclick="openDashboard()">Node Dashboard oeffnen</button>
@@ -200,13 +200,23 @@
         let loadedShares = [];
 
         document.addEventListener('DOMContentLoaded', () => {
+            // Use the node that delivered this page. Without this assignment,
+            // committee pages on ports 5002 and 5003 silently queried node1
+            // because the visible input still contained the demo default.
+            const configuredNode = new URLSearchParams(window.location.search).get('node');
+            const servedByNode = ['http:', 'https:'].includes(window.location.protocol)
+                ? window.location.origin
+                : null;
+            document.getElementById('apiUrl').value = configuredNode || servedByNode || 'https://127.0.0.1:5001';
             renderMembers();
             renderStatus();
             loadElections();
         });
 
         function apiUrl() {
-            return document.getElementById('apiUrl').value.replace(/\/$/, '');
+            const value = document.getElementById('apiUrl').value.replace(/\/$/, '');
+            if (!value.startsWith('https://')) throw new Error('Node API muss HTTPS verwenden.');
+            return value;
         }
 
         function escapeHtml(value) {
@@ -240,7 +250,14 @@
         async function loadElections() {
             setFeedback('connectionFeedback', 'pending', 'Lade committed Wahlen von der Node...');
             try {
-                const data = await requestJson('/api/v2/elections');
+                const [data, info] = await Promise.all([
+                    requestJson('/api/v2/elections'),
+                    requestJson('/api/v2/node/info'),
+                ]);
+                const role = info.is_validator ? 'Validator' : 'Observer';
+                document.title = `${info.node_id} - Committee Client`;
+                document.getElementById('committeeTitle').textContent = `Committee Client · ${info.node_id}`;
+                document.getElementById('committeeSubtitle').textContent = `${role} · verbunden mit ${apiUrl()}`;
                 const list = document.getElementById('electionList');
                 if (!data.elections.length) {
                     list.innerHTML = '<div class="item muted">Noch keine committed v2-Wahl gefunden</div>';

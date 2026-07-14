@@ -177,7 +177,7 @@
             <div class="panel span-12">
                 <h2>Verbindung</h2>
                 <label for="apiUrl">Node API URL</label>
-                <input id="apiUrl" value="http://127.0.0.1:5001">
+                <input id="apiUrl" value="https://127.0.0.1:5001">
                 <div class="button-row">
                     <button onclick="loadElections()">Wahlen laden</button>
                     <button class="secondary" onclick="openDashboard()">Node Dashboard oeffnen</button>
@@ -235,7 +235,7 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             // A separately hosted client can receive its initial Node API in
-            // the URL, for example `/?node=http://127.0.0.1:5001`. The voter
+            // the URL, for example `/?node=https://127.0.0.1:5001`. The voter
             // can still inspect and change the value before sending anything.
             const configuredNode = new URLSearchParams(window.location.search).get('node');
             if (configuredNode) {
@@ -247,7 +247,9 @@
         });
 
         function apiUrl() {
-            return document.getElementById('apiUrl').value.replace(/\/$/, '');
+            const value = document.getElementById('apiUrl').value.replace(/\/$/, '');
+            if (!value.startsWith('https://')) throw new Error('Node API muss HTTPS verwenden.');
+            return value;
         }
 
         function escapeHtml(value) {

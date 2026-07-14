@@ -280,19 +280,19 @@
 </head>
 <body>
     <header>
-        <h1>V2 Distributed Voting Dashboard</h1>
-        <p class="subtitle">Node-Status, Mempool, Blocks, Elections, Tally und Verify.</p>
+        <h1 id="dashboardTitle">V2 Node Dashboard</h1>
+        <p class="subtitle" id="dashboardSubtitle">Node-Verbindung wird geladen.</p>
     </header>
 
     <main>
         <section class="toolbar">
             <div>
                 <label for="apiUrl">Aktive Node API</label>
-                <input id="apiUrl" value="http://127.0.0.1:5001">
+                <input id="apiUrl" placeholder="https://127.0.0.1:5001">
             </div>
             <div>
                 <label for="peerUrl">Peer URL</label>
-                <input id="peerUrl" value="http://127.0.0.1:5002">
+                <input id="peerUrl" value="https://127.0.0.1:5002">
             </div>
             <div>
                 <label for="adminKey">Admin Key</label>
@@ -353,9 +353,9 @@
                 <div class="form-grid">
                     <div>
                         <label for="networkNodeUrls">Node URLs, eine pro Zeile</label>
-                        <textarea id="networkNodeUrls" style="min-height: 88px;">http://127.0.0.1:5001
-http://127.0.0.1:5002
-http://127.0.0.1:5003</textarea>
+                        <textarea id="networkNodeUrls" style="min-height: 88px;">https://127.0.0.1:5001
+https://127.0.0.1:5002
+https://127.0.0.1:5003</textarea>
                     </div>
                     <div>
                         <label>Ablauf</label>
@@ -457,12 +457,29 @@ Charlie</textarea>
         let pendingCommitteeSetup = null;
 
         document.addEventListener('DOMContentLoaded', () => {
+            // A dashboard served by node2 or node3 must talk to that same node.
+            // The optional query parameter remains useful when the page is
+            // hosted separately during development.
+            const configuredNode = new URLSearchParams(window.location.search).get('node');
+            const servedByNode = ['http:', 'https:'].includes(window.location.protocol)
+                ? window.location.origin
+                : null;
+            document.getElementById('apiUrl').value = configuredNode || servedByNode || 'https://127.0.0.1:5001';
+
+            // On observer dashboards, node1 is the useful default sync peer.
+            // Node1 itself continues to suggest node2.
+            const currentPort = new URL(document.getElementById('apiUrl').value).port;
+            document.getElementById('peerUrl').value = currentPort === '5001'
+                ? 'https://127.0.0.1:5002'
+                : 'https://127.0.0.1:5001';
             renderCandidatePreview();
             refreshAll();
         });
 
         function apiUrl() {
-            return document.getElementById('apiUrl').value.replace(/\/$/, '');
+            const value = document.getElementById('apiUrl').value.replace(/\/$/, '');
+            if (!value.startsWith('https://')) throw new Error('Node API muss HTTPS verwenden.');
+            return value;
         }
 
         function escapeHtml(value) {
@@ -629,6 +646,10 @@ Charlie</textarea>
         }
 
         function renderNode(info) {
+            const role = info.is_validator ? 'Validator' : 'Observer';
+            document.title = `${info.node_id} ${role} - Voting Dashboard`;
+            document.getElementById('dashboardTitle').textContent = `${info.node_id} Dashboard`;
+            document.getElementById('dashboardSubtitle').textContent = `${role} · ${apiUrl()} · eigener Mempool und eigener persistierter Chain-State`;
             document.getElementById('nodeMetrics').innerHTML = `
                 <div class="metric">Node<span class="value">${escapeHtml(info.node_id)}</span></div>
                 <div class="metric">Validator<span class="value ${info.is_validator ? 'ok' : 'bad'}">${info.is_validator ? 'yes' : 'no'}</span></div>

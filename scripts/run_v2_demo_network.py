@@ -33,6 +33,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from voting_system.distributed_blockchain import generate_validator_keypair
+from voting_system.tls import TLSPaths, ensure_development_tls_material
 
 
 DEFAULT_DATA_ROOT = PROJECT_ROOT / ".node-data" / "v2-demo-network"
@@ -83,7 +84,7 @@ def load_or_create_config(data_root: Path, base_port: int) -> dict:
     return config
 
 
-def build_node_env(config: dict, node_config: dict, data_root: Path) -> dict:
+def build_node_env(config: dict, node_config: dict, data_root: Path, tls_paths: TLSPaths) -> dict:
     """
     Build the environment consumed by `DistributedVotingBlockchain.from_env`.
 
@@ -95,7 +96,7 @@ def build_node_env(config: dict, node_config: dict, data_root: Path) -> dict:
     existing_pythonpath = env.get("PYTHONPATH", "")
     node_id = node_config["node_id"]
     node_url_by_id = {
-        item["node_id"]: f"http://127.0.0.1:{item['port']}"
+        item["node_id"]: f"https://127.0.0.1:{item['port']}"
         for item in config["nodes"]
     }
     peer_urls = [
@@ -120,27 +121,28 @@ def build_node_env(config: dict, node_config: dict, data_root: Path) -> dict:
         env["NODE_PRIVATE_KEY"] = config["validator_private_key"]
     else:
         env.pop("NODE_PRIVATE_KEY", None)
+    tls_paths.apply_to_environment(env)
     return env
 
 
-def start_node(config: dict, node_config: dict, data_root: Path) -> subprocess.Popen:
+def start_node(config: dict, node_config: dict, data_root: Path, tls_paths: TLSPaths) -> subprocess.Popen:
     """
     Start one FastAPI process for one node and return the subprocess handle.
 
     The command uses the current Python interpreter so it works both inside the
     project's virtual environment and from a normal shell.
     """
-    env = build_node_env(config, node_config, data_root)
+    env = build_node_env(config, node_config, data_root, tls_paths)
     node_id = node_config["node_id"]
     port = node_config["port"]
-    print(f"\nStarting {node_id} on http://127.0.0.1:{port}")
+    print(f"\nStarting {node_id} on https://127.0.0.1:{port}")
     print(f"  DATA_DIR={env['DATA_DIR']}")
     print(f"  PEERS={env['PEERS']}")
     print(f"  VALIDATOR={'yes' if node_config['validator'] else 'no'}")
     return subprocess.Popen([sys.executable, "-m", "voting_system.node_server"], cwd=PROJECT_ROOT, env=env)
 
 
-def start_voter_client(port: int) -> subprocess.Popen:
+def start_voter_client(port: int, tls_paths: TLSPaths) -> subprocess.Popen:
     """
     Start the voter UI as a process that owns no blockchain or validator state.
 
@@ -154,7 +156,8 @@ def start_voter_client(port: int) -> subprocess.Popen:
         "PYTHONUNBUFFERED": "1",
         "PYTHONPATH": str(PROJECT_ROOT) if not existing_pythonpath else f"{PROJECT_ROOT}{os.pathsep}{existing_pythonpath}",
     })
-    print(f"\nStarting standalone voter client on http://127.0.0.1:{port}")
+    tls_paths.apply_to_environment(env)
+    print(f"\nStarting standalone voter client on https://127.0.0.1:{port}")
     return subprocess.Popen(
         [sys.executable, "-m", "voting_system.voter_client_server"],
         cwd=PROJECT_ROOT,
@@ -193,18 +196,19 @@ def main() -> int:
             shutil.rmtree(data_root)
 
     config = load_or_create_config(data_root, args.base_port)
+    tls_paths = ensure_development_tls_material()
     for index, node in enumerate(config["nodes"]):
         node["port"] = args.base_port + index
 
     urls = {
-        node["node_id"]: f"http://127.0.0.1:{node['port']}"
+        node["node_id"]: f"https://127.0.0.1:{node['port']}"
         for node in config["nodes"]
     }
 
     print("\nV2 demo network")
     print("=" * 60)
     print(f"Dashboard node1: {urls['node1']}/dashboard")
-    print(f"Voter client:     http://127.0.0.1:{args.voter_port}/?node={urls['node1']}")
+    print(f"Voter client:     https://127.0.0.1:{args.voter_port}/?node={urls['node1']}")
     print(f"Committee client: {urls['node1']}/committee")
     print(f"Observer node2:   {urls['node2']}/dashboard")
     print(f"Observer node3:   {urls['node3']}/dashboard")
@@ -222,9 +226,9 @@ def main() -> int:
 
     try:
         for node in config["nodes"]:
-            processes.append(start_node(config, node, data_root))
+            processes.append(start_node(config, node, data_root, tls_paths))
             time.sleep(0.5)
-        processes.append(start_voter_client(args.voter_port))
+        processes.append(start_voter_client(args.voter_port, tls_paths))
         time.sleep(0.5)
 
         print("\nAll nodes and the voter client started. Press Ctrl+C to stop the demo network.")

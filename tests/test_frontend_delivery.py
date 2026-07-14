@@ -25,12 +25,17 @@ class FrontendDeliveryTest(unittest.TestCase):
                 self.assertIn("text/html", response.headers["content-type"])
                 self.assertIn("/assets/voting_crypto.bundle.js", response.text)
                 self.assertNotIn("/api/v2/demo/", response.text)
+                self.assertIn("window.location.origin", response.text)
+                self.assertIn("new URLSearchParams", response.text)
+                self.assertNotIn('value="http://127.0.0.1:5001"', response.text)
+                self.assertIn("https://127.0.0.1:5001", response.text)
+                self.assertEqual(response.headers["cache-control"], "no-store")
 
             self.assertEqual(client.get("/voter").status_code, 404)
 
             cors_response = client.get(
                 "/api/v2/elections",
-                headers={"Origin": "http://127.0.0.1:7000"},
+                headers={"Origin": "https://127.0.0.1:7000"},
             )
             self.assertEqual(cors_response.status_code, 200)
             self.assertEqual(cors_response.headers["access-control-allow-origin"], "*")

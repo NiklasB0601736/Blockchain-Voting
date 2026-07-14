@@ -9,6 +9,22 @@ INSTALLATION
     .venv/bin/pip3 install -r requirements.txt
 
 
+HTTPS EINMALIG VERTRAUEN
+------------------------
+
+Beim ersten Start entstehen lokale Zertifikate unter:
+
+    .node-data/tls/
+
+Die Datei development-ca.pem einmal in den Zertifikatsspeicher des Browsers
+bzw. Betriebssystems importieren und fuer die lokale Demo als vertrauenswuerdig
+markieren. Ohne diesen Schritt zeigt der Browser eine Zertifikatswarnung.
+
+Zertifikate vorab erzeugen:
+
+    npm run tls:generate
+
+
 DEMO STARTEN
 ------------
 
@@ -22,10 +38,10 @@ Im Node Controller:
 
 Adressen:
 
-    Dashboard  http://127.0.0.1:5001/dashboard
-    Voter      http://127.0.0.1:7000/?node=http://127.0.0.1:5001
-    Committee  http://127.0.0.1:5001/committee
-    API Docs   http://127.0.0.1:5001/docs
+    Dashboard  https://127.0.0.1:5001/dashboard
+    Voter      https://127.0.0.1:7000/?node=https://127.0.0.1:5001
+    Committee  https://127.0.0.1:5001/committee
+    API Docs   https://127.0.0.1:5001/docs
 
 Lokale Rollenkeys:
 

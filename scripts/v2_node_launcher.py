@@ -33,6 +33,7 @@ if str(PROJECT_DIR) not in sys.path:
     sys.path.insert(0, str(PROJECT_DIR))
 
 from voting_system.distributed_blockchain import DistributedVotingBlockchain, generate_validator_keypair
+from voting_system.tls import ensure_development_tls_material
 
 DEFAULT_ADMIN_KEY = "dev_admin_key"
 
@@ -54,6 +55,7 @@ class V2NodeLauncher(tk.Tk):
         self.process: subprocess.Popen | None = None
         self.voter_client_process: subprocess.Popen | None = None
         self.demo_network_process: subprocess.Popen | None = None
+        self.tls_paths = ensure_development_tls_material()
 
         self.node_id = tk.StringVar(value="node1")
         self.port = tk.StringVar(value="5001")
@@ -334,10 +336,12 @@ class V2NodeLauncher(tk.Tk):
                 "PYTHONPATH": str(PROJECT_DIR) if not existing_pythonpath else f"{PROJECT_DIR}{os.pathsep}{existing_pythonpath}",
             }
         )
+        self.tls_paths.apply_to_environment(env)
 
         self._log_line("Start single node:")
         for key in ["NODE_ID", "PORT", "DATA_DIR", "PEERS", "VALIDATORS_JSON"]:
             self._log_line(f"  {key}={env[key]}")
+        self._log_line(f"  TLS_CA_CERT={env['TLS_CA_CERT']}")
 
         self.process = subprocess.Popen(
             [sys.executable, "-m", "voting_system.node_server"],
@@ -485,14 +489,14 @@ class V2NodeLauncher(tk.Tk):
 
         self._log_line("Start demo network:")
         self._log_line("  " + " ".join(command))
-        self._log_line(f"  node1 dashboard: http://127.0.0.1:{base_port}/dashboard")
+        self._log_line(f"  node1 dashboard: https://127.0.0.1:{base_port}/dashboard")
         self._log_line(
-            f"  voter client:     http://127.0.0.1:{self.voter_client_port.get().strip()}"
-            f"/?node=http://127.0.0.1:{base_port}"
+            f"  voter client:     https://127.0.0.1:{self.voter_client_port.get().strip()}"
+            f"/?node=https://127.0.0.1:{base_port}"
         )
-        self._log_line(f"  committee client: http://127.0.0.1:{base_port}/committee")
-        self._log_line(f"  node2 dashboard: http://127.0.0.1:{base_port + 1}/dashboard")
-        self._log_line(f"  node3 dashboard: http://127.0.0.1:{base_port + 2}/dashboard")
+        self._log_line(f"  committee client: https://127.0.0.1:{base_port}/committee")
+        self._log_line(f"  node2 dashboard: https://127.0.0.1:{base_port + 1}/dashboard")
+        self._log_line(f"  node3 dashboard: https://127.0.0.1:{base_port + 2}/dashboard")
 
         env = os.environ.copy()
         existing_pythonpath = env.get("PYTHONPATH", "")
@@ -531,11 +535,11 @@ class V2NodeLauncher(tk.Tk):
             messagebox.showerror("Base Port ungueltig", "Bitte eine Zahl fuer den Base Port eintragen.")
             return
 
-        webbrowser.open(f"http://127.0.0.1:{base_port}/dashboard")
-        webbrowser.open(f"http://127.0.0.1:{base_port}/committee")
+        webbrowser.open(f"https://127.0.0.1:{base_port}/dashboard")
+        webbrowser.open(f"https://127.0.0.1:{base_port}/committee")
         webbrowser.open(
-            f"http://127.0.0.1:{self.voter_client_port.get().strip()}"
-            f"/?node=http://127.0.0.1:{base_port}"
+            f"https://127.0.0.1:{self.voter_client_port.get().strip()}"
+            f"/?node=https://127.0.0.1:{base_port}"
         )
         self._log_line(f"Opened node1 pages and the separate voter client.")
 
@@ -561,6 +565,7 @@ class V2NodeLauncher(tk.Tk):
         existing_pythonpath = env.get("PYTHONPATH", "")
         env["VOTER_CLIENT_PORT"] = str(port)
         env["PYTHONPATH"] = str(PROJECT_DIR) if not existing_pythonpath else f"{PROJECT_DIR}{os.pathsep}{existing_pythonpath}"
+        self.tls_paths.apply_to_environment(env)
         self.voter_client_process = subprocess.Popen(
             [sys.executable, "-m", "voting_system.voter_client_server"],
             cwd=PROJECT_DIR,
@@ -589,25 +594,25 @@ class V2NodeLauncher(tk.Tk):
     def open_voter_client(self) -> None:
         """Open the independent client and preselect the configured Node API."""
         url = (
-            f"http://127.0.0.1:{self.voter_client_port.get().strip()}"
-            f"/?node=http://127.0.0.1:{self.port.get().strip()}"
+            f"https://127.0.0.1:{self.voter_client_port.get().strip()}"
+            f"/?node=https://127.0.0.1:{self.port.get().strip()}"
         )
         webbrowser.open(url)
         self._log_line(f"Opened voter client: {url}")
 
     def open_dashboard(self) -> None:
         """Open the browser dashboard and point it at this node's port."""
-        url = f"http://127.0.0.1:{self.port.get().strip()}/dashboard"
+        url = f"https://127.0.0.1:{self.port.get().strip()}/dashboard"
         webbrowser.open(url)
         self._log_line(f"Opened dashboard: {url}")
 
     def open_docs(self) -> None:
         """Open FastAPI docs for the running node."""
-        webbrowser.open(f"http://127.0.0.1:{self.port.get().strip()}/docs")
+        webbrowser.open(f"https://127.0.0.1:{self.port.get().strip()}/docs")
 
     def show_demo_command(self) -> None:
         """Show the simplified demo-client command for the current node."""
-        command = f"{sys.executable} scripts/v2_demo_client.py --api-url http://127.0.0.1:{self.port.get().strip()} full-demo"
+        command = f"{sys.executable} scripts/v2_demo_client.py --api-url https://127.0.0.1:{self.port.get().strip()} full-demo"
         self._log_line("Demo client command:")
         self._log_line(command)
 

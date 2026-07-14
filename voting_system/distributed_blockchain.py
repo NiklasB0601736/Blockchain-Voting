@@ -49,6 +49,7 @@ from voting_system.crypto_petlib_elgamal_tally import (
     verify_partial_decryption_proof,
     verify_threshold_tally_result,
 )
+from voting_system.tls import create_client_ssl_context
 
 
 CHAIN_FILE = "chain.json"
@@ -156,6 +157,22 @@ def normalize_validators(validators_json: Optional[str], node_id: str, node_priv
         return {node_id: public_key_hex_from_private(node_private_key)}
 
     return {}
+
+
+def normalize_peer_url(peer_url: str) -> str:
+    """
+    Return one canonical HTTPS peer base URL.
+
+    Existing demo states may still contain localhost ``http://`` entries from
+    older versions. They are migrated to HTTPS during loading, while malformed
+    or scheme-less values are rejected instead of being contacted insecurely.
+    """
+    clean_peer = str(peer_url).strip().rstrip("/")
+    if clean_peer.lower().startswith("http://"):
+        clean_peer = "https://" + clean_peer[len("http://"):]
+    if clean_peer and not clean_peer.lower().startswith("https://"):
+        raise ValueError("peer URL must use HTTPS")
+    return clean_peer
 
 
 def make_transaction(tx_type: str, payload: dict, timestamp: Optional[str] = None) -> dict:
@@ -331,7 +348,11 @@ class DistributedVotingBlockchain:
         self.data_dir = Path(data_dir)
         self.validators = validators or {}
         self.private_key_hex = private_key_hex
-        self.peers = list(dict.fromkeys(peers or []))
+        self.peers = list(dict.fromkeys(
+            normalized
+            for peer in peers or []
+            if (normalized := normalize_peer_url(peer))
+        ))
         self.chain: List[dict] = []
         self.mempool: List[dict] = []
         self.data_dir.mkdir(parents=True, exist_ok=True)
@@ -454,15 +475,15 @@ class DistributedVotingBlockchain:
         return True
 
     def add_peer(self, peer_url: str) -> None:
-        """Add a peer base URL to the local peer list."""
-        clean_peer = peer_url.rstrip("/")
+        """Add a canonical HTTPS peer base URL to the local peer list."""
+        clean_peer = normalize_peer_url(peer_url)
         if clean_peer and clean_peer not in self.peers:
             self.peers.append(clean_peer)
             self._persist_peers()
 
     def sync_from_peers(self) -> dict:
         """
-        Pull chain and mempool data from configured HTTP peers.
+        Pull chain and mempool data from configured HTTPS peers.
 
         The method accepts a longer chain only after full validation. Mempool
         transactions from peers are revalidated locally before being added.
@@ -692,7 +713,11 @@ class DistributedVotingBlockchain:
             self._persist_mempool()
 
         if peers_path.exists():
-            self.peers = list(dict.fromkeys(json.loads(peers_path.read_text()) + self.peers))
+            persisted_peers = [
+                normalize_peer_url(peer)
+                for peer in json.loads(peers_path.read_text())
+            ]
+            self.peers = list(dict.fromkeys(persisted_peers + self.peers))
         self._persist_peers()
 
     def _persist_all(self) -> None:
@@ -1031,8 +1056,14 @@ class DistributedVotingBlockchain:
         return True
 
     def _get_json(self, url: str) -> dict:
-        """Fetch JSON from a peer using only the Python standard library."""
-        with urllib.request.urlopen(url, timeout=5) as response:
+        """Fetch peer JSON over HTTPS while verifying the configured CA."""
+        if not url.lower().startswith("https://"):
+            raise ValueError("peer URL must use HTTPS")
+        with urllib.request.urlopen(
+            url,
+            timeout=5,
+            context=create_client_ssl_context(),
+        ) as response:
             return json.loads(response.read().decode("utf-8"))
 
 

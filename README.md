@@ -58,7 +58,7 @@ Die V2-API verwendet fuer die beiden privilegierten Rollen die Header
 voting_system/     FastAPI, Chain-Core und Petlib-Kryptografie
 web/               Dashboard, Voter, Committee und Browser-Crypto
 scripts/           Node Controller, Demo-Netzwerk und CLI-Client
-tests/             Python-, HTTP-Prozess- und Interoperabilitaetstests
+tests/             Python-, HTTPS-Prozess- und Interoperabilitaetstests
 tests_js/          Browser-Kryptografie-Tests
 docs/              Anleitungen und Architekturdiagramme
 archive/           historische Python- und Ethereum-Prototypen
@@ -96,12 +96,12 @@ Empfohlen fuer die Praesentation:
 Im Controller `3-Node-Demo starten` waehlen. Danach:
 
 ```text
-Dashboard: http://127.0.0.1:5001/dashboard
-Voter:     http://127.0.0.1:7000/?node=http://127.0.0.1:5001
-Committee: http://127.0.0.1:5001/committee
-Node 2:    http://127.0.0.1:5002/dashboard
-Node 3:    http://127.0.0.1:5003/dashboard
-API Docs:  http://127.0.0.1:5001/docs
+Dashboard: https://127.0.0.1:5001/dashboard
+Voter:     https://127.0.0.1:7000/?node=https://127.0.0.1:5001
+Committee: https://127.0.0.1:5001/committee
+Node 2:    https://127.0.0.1:5002/dashboard
+Node 3:    https://127.0.0.1:5003/dashboard
+API Docs:  https://127.0.0.1:5001/docs
 ```
 
 Alternativ direkt:
@@ -110,7 +110,37 @@ Alternativ direkt:
 .venv/bin/python scripts/run_v2_demo_network.py --reset
 ```
 
-Der Demo-Start erzeugt vier getrennte Prozesse: drei Blockchain-Nodes und den
+### Lokales HTTPS-Zertifikat
+
+Beim ersten Start erzeugt das Projekt unter `.node-data/tls/` eine lokale
+Entwicklungs-CA und ein von ihr signiertes Zertifikat fuer `localhost` und
+`127.0.0.1`. Nodes, Voter-Server und Python-Clients verwenden HTTPS; auch die
+Peer-Synchronisation prueft dieses Zertifikat gegen die lokale CA.
+
+Damit der Browser keine Zertifikatswarnung zeigt, muss
+`.node-data/tls/development-ca.pem` einmal als vertrauenswuerdige Root-CA in den
+lokalen Zertifikatsspeicher importiert werden. Auf macOS geht das ueber
+`Schluesselbundverwaltung -> System -> Zertifikate importieren`; danach fuer
+dieses Entwicklungszertifikat `Immer vertrauen` setzen. Diese CA ist nur fuer
+die lokale Demo bestimmt und darf nicht fuer produktive Systeme verwendet
+werden.
+
+Zertifikate koennen auch vor dem Start explizit erzeugt werden:
+
+```bash
+npm run tls:generate
+```
+
+Fuer einen LAN-Test muss die verwendete IP-Adresse als SAN aufgenommen werden:
+
+```bash
+.venv/bin/python scripts/generate_dev_tls.py --force --host 192.168.178.42
+```
+
+Der zweite Rechner muss derselben `development-ca.pem` vertrauen. Die private
+Datei `development-ca-key.pem` darf den erzeugenden Rechner nicht verlassen.
+
+Der Demo-Start erzeugt vier getrennte HTTPS-Prozesse: drei Blockchain-Nodes und den
 zustandslosen Voter-Server auf Port `7000`. Eine einzelne Node und der Voter
 koennen auch separat gestartet werden:
 
@@ -120,7 +150,7 @@ koennen auch separat gestartet werden:
 ```
 
 Die Node liefert bewusst keine `/voter`-Route mehr aus. Der Voter kommuniziert
-ueber die sichtbare Node API URL mit einer ausgewaehlten Node; CORS ist fuer
+ueber die sichtbare HTTPS-Node-API mit einer ausgewaehlten Node; CORS ist fuer
 diese Cross-Origin-Anfragen im Prototyp aktiviert.
 
 Eine einzelne Node:
@@ -131,6 +161,20 @@ V2_ADMIN_KEY=dev_admin_key \
 V2_NODE_KEY=dev_node_key \
 .venv/bin/python -m voting_system.node_server
 ```
+
+Optionale TLS-Konfiguration fuer eigene Zertifikate:
+
+```text
+TLS_CERT_FILE=/absoluter/pfad/server-cert.pem
+TLS_KEY_FILE=/absoluter/pfad/server-key.pem
+TLS_CA_CERT=/absoluter/pfad/ca-cert.pem
+TLS_EXTRA_HOSTS=localhost,192.168.178.42
+```
+
+Ohne diese Variablen wird automatisch das lokale Material unter
+`.node-data/tls/` verwendet. `TLS_EXTRA_HOSTS` wirkt nur bei der erstmaligen
+Erzeugung; fuer eine nachtraeglich hinzugefuegte LAN-IP das Zertifikat mit
+`scripts/generate_dev_tls.py --force --host ...` neu erzeugen.
 
 ## Bedienung
 
@@ -161,7 +205,7 @@ Die Tests umfassen unter anderem:
 - Browser-Noble-Payloads gegen Python/Petlib
 - Nullifier-Bindung und Double-Voting-Ablehnung
 - Admin-/Node-Rollenkeys
-- drei echte FastAPI-Prozesse mit HTTP-Sync
+- drei echte FastAPI-Prozesse mit HTTPS-Sync
 - Auslieferung aller drei GUIs und des Crypto-Bundles
 
 ## Bewusste Grenzen
@@ -178,6 +222,8 @@ Die Tests umfassen unter anderem:
 - einfacher PoA-Konsens und manuell angestossener Peer-Sync
 - keine BFT-Fork-Aufloesung, Datenbank oder parallele Transaktionssperren
 - kein Schutz gegen IP-, Timing- und Reihenfolge-Metadaten
+- lokale Entwicklungs-CA statt produktiver PKI, Zertifikatsrotation oder
+  automatisierter Geheimnisverwaltung
 - keine formale Sicherheitsanalyse, Audits oder rechtliche Zulassung
 
 Historische Entwuerfe liegen nur noch als Lern- und Forschungsreferenzen unter

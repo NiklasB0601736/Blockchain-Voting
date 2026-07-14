@@ -83,11 +83,19 @@ LAN-Test Ablauf
 
         192.168.178.42
 
+[ ] HTTPS-Zertifikat fuer diese LAN-IP neu erzeugen.
+
+        .venv/bin/python scripts/generate_dev_tls.py --force --host 192.168.178.42
+
+    Danach `development-ca.pem` sicher auf Rechner B uebertragen und dort als
+    vertrauenswuerdige lokale Root-CA importieren. Der private CA-Key bleibt auf
+    Rechner A.
+
 [ ] Rechner B testet, ob Node 1 erreichbar ist.
 
     Im Browser:
 
-        http://192.168.178.42:5001/api/v2/node/info
+        https://192.168.178.42:5001/api/v2/node/info
 
 [ ] Falls nicht erreichbar:
 
@@ -105,13 +113,13 @@ LAN-Test Ablauf
         PORT=5002
         NODE_ID=node2
         DATA_DIR=.node-data/node2
-        PEERS=http://192.168.178.42:5001
+        PEERS=https://192.168.178.42:5001
 
 [ ] Node 2 ruft Sync auf.
 
     Browser/API:
 
-        POST http://<rechner-b-ip>:5002/api/v2/sync
+        POST https://<rechner-b-ip>:5002/api/v2/sync
 
     Oder im Dashboard:
 
@@ -184,9 +192,9 @@ Falls LAN/Firewall/Uni-WLAN Probleme macht:
 
 [ ] Drei Nodes starten:
 
-    - Node 1: http://127.0.0.1:5001
-    - Node 2: http://127.0.0.1:5002
-    - Node 3: http://127.0.0.1:5003
+    - Node 1: https://127.0.0.1:5001
+    - Node 2: https://127.0.0.1:5002
+    - Node 3: https://127.0.0.1:5003
 
 [ ] Gleiche Demo zeigen:
 

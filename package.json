@@ -9,10 +9,11 @@
     "start:module": ".venv/bin/python -m voting_system.node_server",
     "start:voter": ".venv/bin/python -m voting_system.voter_client_server",
     "demo:network": ".venv/bin/python scripts/run_v2_demo_network.py --reset",
+    "tls:generate": ".venv/bin/python scripts/generate_dev_tls.py",
     "test:python": ".venv/bin/python -m unittest discover -s tests",
     "build:web-crypto": "esbuild web/src/voting_crypto.js --bundle --format=iife --global-name=VotingCrypto --outfile=web/assets/voting_crypto.bundle.js",
     "test:web-crypto": "node --test tests_js/*.test.js",
-    "dashboard": "open web/frontend_v2.html"
+    "dashboard": "open https://127.0.0.1:5001/dashboard"
   },
   "keywords": [
     "blockchain",

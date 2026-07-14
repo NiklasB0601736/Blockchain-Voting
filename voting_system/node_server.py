@@ -25,6 +25,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from voting_system.distributed_blockchain import DistributedVotingBlockchain, register_v2_routes
+from voting_system.tls import configured_tls_paths
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -85,7 +86,9 @@ def create_app(node: DistributedVotingBlockchain | None = None) -> FastAPI:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="frontend_v2.html nicht gefunden",
             )
-        return FileResponse(dashboard_path)
+        # Operator pages contain the node origin in their runtime state. Avoid
+        # browser caches retaining an older version that still points at node1.
+        return FileResponse(dashboard_path, headers={"Cache-Control": "no-store"})
 
     @app.get("/committee")
     def committee_client() -> FileResponse:
@@ -96,7 +99,7 @@ def create_app(node: DistributedVotingBlockchain | None = None) -> FastAPI:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="committee_client.html nicht gefunden",
             )
-        return FileResponse(committee_path)
+        return FileResponse(committee_path, headers={"Cache-Control": "no-store"})
 
     register_v2_routes(app, node=node)
     return app
@@ -106,23 +109,35 @@ app = create_app()
 
 
 def main() -> None:
-    """Run one configured blockchain node for development or presentations."""
+    """Run one configured blockchain node with TLS enabled."""
     import uvicorn
 
     host = os.environ.get("HOST", "127.0.0.1")
     port = int(os.environ.get("PORT", "5001"))
     reload_enabled = os.environ.get("API_RELOAD", "0") == "1"
+    tls_paths = configured_tls_paths()
+    os.environ.setdefault("TLS_CA_CERT", str(tls_paths.ca_cert))
+    os.environ.setdefault("TLS_CERT_FILE", str(tls_paths.server_cert))
+    os.environ.setdefault("TLS_KEY_FILE", str(tls_paths.server_key))
     target = "voting_system.node_server:app" if reload_enabled else app
 
     print("\n" + "=" * 70)
     print("DISTRIBUTED BLOCKCHAIN VOTING NODE".center(70))
     print("=" * 70)
-    print(f"API:       http://{host}:{port}")
-    print(f"Dashboard: http://{host}:{port}/dashboard")
-    print(f"Committee: http://{host}:{port}/committee")
+    print(f"API:       https://{host}:{port}")
+    print(f"Dashboard: https://{host}:{port}/dashboard")
+    print(f"Committee: https://{host}:{port}/committee")
+    print(f"TLS CA:    {tls_paths.ca_cert}")
     print("=" * 70 + "\n")
 
-    uvicorn.run(target, host=host, port=port, reload=reload_enabled)
+    uvicorn.run(
+        target,
+        host=host,
+        port=port,
+        reload=reload_enabled,
+        ssl_certfile=str(tls_paths.server_cert),
+        ssl_keyfile=str(tls_paths.server_key),
+    )
 
 
 if __name__ == "__main__":

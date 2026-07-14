@@ -43,6 +43,7 @@ from voting_system.crypto_petlib_elgamal_tally import (
     public_shares_from_payload,
     publish_threshold_tally_result,
 )
+from voting_system.tls import create_client_ssl_context
 
 
 DEFAULT_STATE_FILE = str(PROJECT_ROOT / ".node-data" / "v2-demo-client-state.json")
@@ -61,13 +62,15 @@ def request_json(
     headers: dict[str, str] | None = None,
 ) -> dict:
     """
-    Send JSON to the v2 API using only the Python standard library.
+    Send verified HTTPS JSON requests to the v2 API.
 
     Keeping this dependency-free makes the client easy to run in the same venv
     as the project. API errors are surfaced as Python exceptions with the server
     response body attached where possible.
     """
     url = f"{api_url.rstrip('/')}{path}"
+    if not url.lower().startswith("https://"):
+        raise ValueError("api URL must use HTTPS")
     data = None
     request_headers = dict(headers or {})
     if payload is not None:
@@ -76,7 +79,11 @@ def request_json(
 
     request = urllib.request.Request(url, data=data, headers=request_headers, method=method)
     try:
-        with urllib.request.urlopen(request, timeout=10) as response:
+        with urllib.request.urlopen(
+            request,
+            timeout=10,
+            context=create_client_ssl_context(),
+        ) as response:
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8")
@@ -301,7 +308,7 @@ def print_json(title: str, value: Any) -> None:
 def build_parser() -> argparse.ArgumentParser:
     """Define the demo client's subcommands."""
     parser = argparse.ArgumentParser(description="Demo client for the v2 distributed voting chain.")
-    parser.add_argument("--api-url", default="http://127.0.0.1:5001")
+    parser.add_argument("--api-url", default="https://127.0.0.1:5001")
     parser.add_argument("--state-file", default=DEFAULT_STATE_FILE)
     parser.add_argument("--admin-key", default="dev_admin_key")
     parser.add_argument("--node-key", default="dev_node_key")

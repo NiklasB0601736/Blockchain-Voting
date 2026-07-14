@@ -17,7 +17,7 @@ Zeigen:
 2. WAHL UND COMMITTEE
 ---------------------
 
-Dashboard unter http://127.0.0.1:5001/dashboard oeffnen.
+Dashboard unter https://127.0.0.1:5001/dashboard oeffnen.
 
 - Titel und Kandidaten eintragen.
 - Committee 5, Threshold 3 setzen.
@@ -35,7 +35,7 @@ Erklaeren:
 ----------------
 
 Separaten Voter unter
-http://127.0.0.1:7000/?node=http://127.0.0.1:5001 oeffnen.
+https://127.0.0.1:7000/?node=https://127.0.0.1:5001 oeffnen.
 
 - Wahl laden.
 - Voter-Secret eingeben.
@@ -80,7 +80,7 @@ Grenze nennen:
 6. NODE-SYNC
 ------------
 
-- Node2-Dashboard unter http://127.0.0.1:5002/dashboard oeffnen.
+- Node2-Dashboard unter https://127.0.0.1:5002/dashboard oeffnen.
 - Node Key eintragen und Sync ausfuehren.
 - fuer node3 wiederholen.
 - gleiche Chain-Length und gleichen Latest Hash zeigen.
@@ -103,7 +103,7 @@ Zeigen:
 8. THRESHOLD-COMMITTEE
 ----------------------
 
-Committee unter http://127.0.0.1:5001/committee oeffnen.
+Committee unter https://127.0.0.1:5001/committee oeffnen.
 
 - Wahl auswaehlen.
 - zuerst nur zwei Share-Dateien laden: Threshold fehlt.

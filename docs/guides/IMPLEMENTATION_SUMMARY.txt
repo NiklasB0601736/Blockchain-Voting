@@ -101,7 +101,7 @@ TESTABDECKUNG
 - Noble-Payloads werden von Petlib akzeptiert
 - Hash-, Signatur-, Mempool- und Nullifier-Regeln
 - Rollenkeys
-- echter HTTP-Sync zwischen drei FastAPI-Prozessen
+- echter HTTPS-Sync zwischen drei FastAPI-Prozessen
 - HTML-Routen und Browser-Crypto-Bundle
 
 
